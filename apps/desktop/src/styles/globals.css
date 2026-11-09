@@ -1,0 +1,157 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-surface-1 text-text-primary font-sans;
+    overflow: hidden; /* Tauri window manages scrolling */
+    user-select: none; /* Prevent accidental text selection on UI chrome */
+  }
+
+  /* Allow text selection in content areas */
+  .selectable {
+    user-select: text;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-surface-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-text-muted;
+  }
+}
+
+@layer components {
+  /* ── Button System ─────────────────────────────────────── */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 
+           text-sm font-medium transition-all duration-150 cursor-pointer
+           focus:outline-none focus:ring-2 focus:ring-accent/50;
+  }
+
+  .btn-primary {
+    @apply btn bg-accent hover:bg-accent-dim text-white;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent hover:bg-surface-4 text-text-secondary hover:text-text-primary;
+  }
+
+  .btn-danger {
+    @apply btn bg-status-error/10 hover:bg-status-error/20 text-status-error;
+  }
+
+  /* ── Card / Panel ─────────────────────────────────────── */
+  .card {
+    @apply bg-surface-2 border border-surface-border rounded-xl;
+  }
+
+  .panel {
+    @apply bg-surface-3 border border-surface-border rounded-lg;
+  }
+
+  /* ── Input ────────────────────────────────────────────── */
+  .input {
+    @apply w-full bg-surface-3 border border-surface-border rounded-lg
+           px-3 py-2 text-sm text-text-primary placeholder-text-muted
+           focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/30
+           transition-colors duration-150;
+    user-select: text;
+  }
+
+  /* ── Status Dot ───────────────────────────────────────── */
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+
+  .status-dot-online { @apply status-dot bg-status-success; }
+  .status-dot-warning { @apply status-dot bg-status-warning; }
+  .status-dot-error { @apply status-dot bg-status-error; }
+  .status-dot-muted { @apply status-dot bg-text-muted; }
+
+  /* ── Voice Listening Indicator ────────────────────────── */
+  .voice-pulse {
+    @apply w-3 h-3 rounded-full bg-accent-cyan animate-pulse;
+    box-shadow: 0 0 8px theme('colors.accent.cyan');
+  }
+
+  /* ── Message Bubbles ─────────────────────────────────── */
+  .message-user {
+    @apply bg-surface-4 border border-surface-border rounded-2xl rounded-tr-sm
+           px-4 py-3 max-w-[75%] ml-auto;
+  }
+
+  .message-assistant {
+    @apply bg-transparent max-w-[85%];
+  }
+
+  /* ── Navigation ──────────────────────────────────────── */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer
+           text-text-secondary hover:text-text-primary hover:bg-surface-4
+           transition-all duration-150 text-sm font-medium;
+  }
+
+  .nav-item-active {
+    @apply nav-item text-text-primary bg-surface-4 border border-surface-border;
+  }
+
+  /* ── Badge ───────────────────────────────────────────── */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-blue { @apply badge bg-accent/20 text-accent-bright; }
+  .badge-green { @apply badge bg-status-success/20 text-status-success; }
+  .badge-orange { @apply badge bg-status-warning/20 text-status-warning; }
+  .badge-red { @apply badge bg-status-error/20 text-status-error; }
+  .badge-muted { @apply badge bg-surface-4 text-text-secondary; }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-accent-bright to-accent-cyan bg-clip-text text-transparent;
+  }
+
+  .glow-accent {
+    box-shadow: 0 0 20px theme('colors.accent.DEFAULT' / 25%);
+  }
+
+  .border-gradient {
+    border: 1px solid transparent;
+    background: linear-gradient(theme('colors.surface.2'), theme('colors.surface.2')) padding-box,
+                linear-gradient(135deg, theme('colors.accent.DEFAULT'), theme('colors.accent.cyan')) border-box;
+  }
+
+  /* Smooth scrolling for content areas */
+  .scroll-smooth-custom {
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.surface.border') transparent;
+  }
+}
