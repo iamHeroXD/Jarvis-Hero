@@ -108,8 +108,8 @@ async def require_owner(
 @router.get("/setup-status", response_model=SetupStatus)
 async def setup_status(db: Annotated[AsyncSession, Depends(get_db)]):
     """Check whether the owner account has been created yet (first-run detection)."""
-    result = await db.execute(select(User).where(User.is_owner == True))
-    owner = result.scalar_one_or_none()
+    result = await db.execute(select(User).where(User.is_owner == True).order_by(User.id.desc()))
+    owner = result.scalars().first()
     return SetupStatus(
         owner_configured=owner is not None,
         owner_username=owner.username if owner else None,
@@ -127,7 +127,7 @@ async def create_owner(
     """
     # Check no owner exists
     result = await db.execute(select(User).where(User.is_owner == True))
-    if result.scalar_one_or_none():
+    if result.scalars().first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Owner account already exists. Use /auth/token to sign in.",
@@ -135,7 +135,7 @@ async def create_owner(
 
     # Check username not taken
     result = await db.execute(select(User).where(User.username == data.username))
-    if result.scalar_one_or_none():
+    if result.scalars().first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Username is already taken.",
