@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useUIStore, useAuthStore } from '../store';
 import { healthApi } from '../services/api';
+import VoiceHUD from '../components/voice/VoiceHUD';
 import { clsx } from 'clsx';
 
 const NAV_ITEMS = [
@@ -173,8 +174,9 @@ export default function AppLayout() {
       </motion.aside>
 
       {/* ── Main Content ──────────────────────────────────── */}
-      <main className="flex-1 overflow-hidden flex flex-col">
+      <main className="flex-1 overflow-hidden flex flex-col relative">
         <Outlet />
+        <VoiceHUD />
       </main>
     </div>
   );

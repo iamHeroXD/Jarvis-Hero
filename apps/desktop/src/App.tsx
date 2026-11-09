@@ -7,16 +7,14 @@ import Chat from './pages/Chat';
 import Setup from './pages/Setup';
 import MissionControl from './pages/MissionControl';
 import EvolutionCentre from './pages/EvolutionCentre';
-import {
-  MemoryPage,
-  AgentsPage,
-  ProjectsPage,
-  TasksPage,
-  AutomationsPage,
-  ActivityPage,
-  SystemPage,
-  SettingsPage,
-} from './pages/Placeholders';
+import MemoryPage from './pages/MemoryPage';
+import AgentsPage from './pages/Agents';
+import ProjectsPage from './pages/Projects';
+import TasksPage from './pages/Tasks';
+import AutomationsPage from './pages/Automations';
+import ActivityPage from './pages/Activity';
+import SystemPage from './pages/System';
+import SettingsPage from './pages/Settings';
 import { useAuthStore } from './store';
 import { authApi, setToken } from './services/api';
 

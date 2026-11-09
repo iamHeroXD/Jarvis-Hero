@@ -20,6 +20,11 @@ from backend.app.api.v1.endpoints import (
     sentinel,
     governor,
     profiles,
+    tools,
+    agents,
+    voice,
+    automations,
+    activity,
 )
 
 router = APIRouter()
@@ -37,3 +42,8 @@ router.include_router(evolution.router, prefix="/evolution", tags=["evolution"])
 router.include_router(sentinel.router, prefix="/sentinel", tags=["sentinel"])
 router.include_router(governor.router, prefix="/governor", tags=["governor"])
 router.include_router(profiles.router, prefix="/profiles", tags=["profiles"])
+router.include_router(tools.router, prefix="/tools", tags=["tools"])
+router.include_router(agents.router, prefix="/agents", tags=["agents"])
+router.include_router(voice.router, prefix="/voice", tags=["voice"])
+router.include_router(automations.router, prefix="/automations", tags=["automations"])
+router.include_router(activity.router, prefix="/activity", tags=["activity"])
