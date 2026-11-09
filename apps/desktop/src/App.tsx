@@ -5,6 +5,7 @@ import AppLayout from './layouts/AppLayout';
 import Overview from './pages/Overview';
 import Chat from './pages/Chat';
 import Setup from './pages/Setup';
+import LoginPage from './pages/Login';
 import MissionControl from './pages/MissionControl';
 import EvolutionCentre from './pages/EvolutionCentre';
 import MemoryPage from './pages/MemoryPage';
@@ -67,11 +68,17 @@ function AppRoutes() {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" />;
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
   }
 
   return (
     <Routes>
+      <Route path="/login" element={<Navigate to="/" replace />} />
       <Route element={<AppLayout />}>
         <Route path="/" element={<Overview />} />
         <Route path="/mission-control" element={<MissionControl />} />

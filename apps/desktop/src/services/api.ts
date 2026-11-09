@@ -161,6 +161,7 @@ export const authApi = {
   },
 
   me: () => get<{ id: number; username: string; display_name: string; is_owner: boolean }>('/auth/me'),
+  quickUnlock: () => post<AuthToken>('/auth/quick-unlock'),
 };
 
 

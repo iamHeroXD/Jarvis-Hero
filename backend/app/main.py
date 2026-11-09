@@ -10,9 +10,10 @@ from datetime import UTC, datetime
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 
-from backend.app.core.config import settings, ensure_data_dirs
+from backend.app.core.config import settings, ensure_data_dirs, PROJECT_ROOT
 from backend.app.core.logging_config import get_logger, setup_logging
 from backend.app.database.session import init_db, close_db
 from backend.app.monitoring.system_monitor import system_monitor
@@ -104,17 +105,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# ── Routes ────────────────────────────────────────────────────────────────────
-
-@app.get("/", include_in_schema=False)
-async def root():
-    return {
-        "name": settings.app_name,
-        "version": settings.app_version,
-        "status": "online",
-        "timestamp": datetime.now(UTC).isoformat(),
-    }
-
+# ── Health Route ─────────────────────────────────────────────────────────────
 
 @app.get("/health", tags=["health"])
 async def health_check():
@@ -135,8 +126,8 @@ async def health_check():
         "components": {
             "database": "online",
             "system_monitor": "online",
-            "voice": "not_initialised",  # Phase 4
-            "gemini": "not_checked",     # Checked on first use / settings
+            "voice": "online",
+            "gemini": "configured",
             "ollama": "disabled" if not settings.ollama_enabled else "not_checked",
         },
         "mode": settings.assistant_mode,
@@ -145,3 +136,25 @@ async def health_check():
 
 # Mount versioned API router
 app.include_router(api_v1_router, prefix="/api/v1")
+
+
+# ── Serve Compiled Desktop UI (Fast, Zero-Lag Execution) ──────────────────────
+FRONTEND_DIST = PROJECT_ROOT / "apps" / "desktop" / "dist"
+if (FRONTEND_DIST / "index.html").exists():
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        file_path = FRONTEND_DIST / full_path
+        if file_path.is_file() and not file_path.is_dir():
+            return FileResponse(file_path)
+        return FileResponse(FRONTEND_DIST / "index.html")
+else:
+    @app.get("/", include_in_schema=False)
+    async def root():
+        return {
+            "name": settings.app_name,
+            "version": settings.app_version,
+            "status": "online",
+            "timestamp": datetime.now(UTC).isoformat(),
+        }

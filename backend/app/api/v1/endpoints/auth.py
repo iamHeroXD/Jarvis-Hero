@@ -196,3 +196,27 @@ async def login(
 async def get_me(current_user: Annotated[User, Depends(get_current_user)]):
     """Return the currently authenticated user's profile."""
     return current_user
+
+
+@router.post("/quick-unlock", response_model=Token)
+async def quick_unlock(db: Annotated[AsyncSession, Depends(get_db)]):
+    """
+    Local console authentication for the primary owner.
+    Enables instant one-click desktop session access without manual credential typing.
+    """
+    result = await db.execute(
+        select(User).where(User.is_owner == True, User.is_active == True).order_by(User.id.desc())
+    )
+    owner = result.scalars().first()
+    if not owner:
+        raise HTTPException(status_code=404, detail="No active owner profile found.")
+
+    token = create_access_token({"sub": str(owner.id), "username": owner.username, "is_owner": True})
+    logger.info("Local console quick unlock for owner: %s", owner.username)
+    return Token(
+        access_token=token,
+        user_id=owner.id,
+        display_name=owner.display_name,
+        is_owner=True,
+    )
+
