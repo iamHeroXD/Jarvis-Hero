@@ -91,3 +91,90 @@ async def get_daily_briefing(current_user: Annotated[User, Depends(get_current_u
     """Generates the tactical daily overview briefing."""
     text = reminder_manager.generate_daily_briefing(owner_name=current_user.display_name)
     return {"briefing": text}
+
+
+# ── Compound Multi-Step Workflow Endpoints ─────────────────────────────────────
+
+from backend.app.tasks.workflow_engine import workflow_engine, WorkflowStep, WorkflowState
+
+
+class PromptToIdeRequest(BaseModel):
+    concept: str
+    ide: str = "antigravity"
+    project_path: str = r"f:\Work\Jarvis- Hero"
+
+
+class ResearchPdfRequest(BaseModel):
+    topic: str
+    output_dir: str = r"f:\Work\Jarvis- Hero\data"
+
+
+class SocialDraftRequest(BaseModel):
+    platform: str = "Instagram"
+    recipient: str
+    message: str
+
+
+@router.get("/workflows")
+async def list_workflows(current_user: Annotated[User, Depends(get_current_user)]):
+    """Returns all tracked multi-step compound workflows and their states."""
+    return [wf.model_dump() for wf in workflow_engine.active_workflows.values()]
+
+
+@router.post("/workflows/prompt-to-ide")
+async def trigger_prompt_to_ide_workflow(
+    data: PromptToIdeRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Initiates master prompt synthesis, IDE launch, and Antigravity handoff deposit."""
+    wf = workflow_engine.build_prompt_to_ide_workflow(
+        prompt_concept=data.concept,
+        ide=data.ide,
+        project_path=data.project_path,
+    )
+    # Execute asynchronously in background
+    import asyncio
+    asyncio.create_task(workflow_engine.execute_workflow(wf.workflow_id))
+    return wf.model_dump()
+
+
+@router.post("/workflows/research-pdf")
+async def trigger_research_pdf_workflow(
+    data: ResearchPdfRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Initiates web research, DOM parsing, citation compilation, and PDF generation."""
+    wf = workflow_engine.build_research_and_pdf_workflow(
+        topic=data.topic,
+        output_dir=data.output_dir,
+    )
+    import asyncio
+    asyncio.create_task(workflow_engine.execute_workflow(wf.workflow_id))
+    return wf.model_dump()
+
+
+@router.post("/workflows/social-draft")
+async def trigger_social_draft_workflow(
+    data: SocialDraftRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Prepares a message draft with MANDATORY owner approval before sending."""
+    wf = workflow_engine.build_social_draft_workflow(
+        platform=data.platform,
+        recipient=data.recipient,
+        draft_text=data.message,
+    )
+    import asyncio
+    asyncio.create_task(workflow_engine.execute_workflow(wf.workflow_id))
+    return wf.model_dump()
+
+
+@router.post("/workflows/{workflow_id}/approve")
+async def approve_workflow_step(
+    workflow_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Explicit owner approval gate to resume a paused workflow."""
+    wf = workflow_engine.approve_and_resume(workflow_id)
+    return wf.model_dump()
+

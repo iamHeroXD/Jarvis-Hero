@@ -1,0 +1,71 @@
+{
+  "workflow_id": "wf_1794629598_6",
+  "title": "IDE Master Prompt Workflow: Refactor UI",
+  "user_intent": "Create prompt for Refactor UI and deliver to Antigravity",
+  "state": "planning",
+  "current_step_index": 0,
+  "steps": [
+    {
+      "id": 1,
+      "name": "Synthesize Master Engineering Prompt",
+      "description": "Synthesize comprehensive developer prompt for: 'Refactor UI'",
+      "action_type": "content_gen",
+      "parameters": {
+        "concept": "Refactor UI"
+      },
+      "state": "pending",
+      "requires_approval": false,
+      "result": null,
+      "error": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": 2,
+      "name": "Launch & Verify Development IDE",
+      "description": "Launch Antigravity loaded with Jarvis- Hero",
+      "action_type": "app_launch",
+      "parameters": {
+        "ide": "Antigravity",
+        "project_path": "F:\\Work\\Jarvis- Hero"
+      },
+      "state": "pending",
+      "requires_approval": false,
+      "result": null,
+      "error": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": 3,
+      "name": "Deposit Antigravity Handoff Payload",
+      "description": "Deposit prompt into workspace/self_improvement/pending/ for immediate pickup",
+      "action_type": "ide_handoff",
+      "parameters": {
+        "project_path": "F:\\Work\\Jarvis- Hero"
+      },
+      "state": "pending",
+      "requires_approval": false,
+      "result": null,
+      "error": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": 4,
+      "name": "Verify Handoff & Summarize",
+      "description": "Verify file deposit and provide instructions to Rohan",
+      "action_type": "verify",
+      "parameters": {},
+      "state": "pending",
+      "requires_approval": false,
+      "result": null,
+      "error": null,
+      "started_at": null,
+      "completed_at": null
+    }
+  ],
+  "created_at": "2026-11-14T09:43:18.692886",
+  "updated_at": "2026-11-14T09:43:18.692901",
+  "context": {}
+}

@@ -1,0 +1,90 @@
+{
+  "workflow_id": "wf_1794626605_2",
+  "title": "IDE Master Prompt Workflow: Autonomous Chess Coach App",
+  "user_intent": "Create prompt for Autonomous Chess Coach App and deliver to antigravity",
+  "state": "completed",
+  "current_step_index": 4,
+  "steps": [
+    {
+      "id": 1,
+      "name": "Synthesize Master Engineering Prompt",
+      "description": "Synthesize comprehensive developer prompt for: 'Autonomous Chess Coach App'",
+      "action_type": "content_gen",
+      "parameters": {
+        "concept": "Autonomous Chess Coach App"
+      },
+      "state": "completed",
+      "requires_approval": false,
+      "result": {
+        "generated_text": "/LangGraph, Anthropic Claude 3.5 Sonnet / OpenAI GPT-4o with Structured Outputs (Pydantic/Zod).\n        *   Database: PostgreSQL + `pgvector"
+      },
+      "error": null,
+      "started_at": "2026-11-14T08:53:31.008936",
+      "completed_at": "2026-11-14T08:53:44.402174"
+    },
+    {
+      "id": 2,
+      "name": "Launch & Verify Development IDE",
+      "description": "Launch Antigravity loaded with Jarvis- Hero",
+      "action_type": "app_launch",
+      "parameters": {
+        "ide": "antigravity",
+        "project_path": "f:\\Work\\Jarvis- Hero"
+      },
+      "state": "completed",
+      "requires_approval": false,
+      "result": {
+        "success": true,
+        "app": "Antigravity IDE",
+        "message": "Right away, Sir. Opening Antigravity IDE loaded with the Jarvis project at Jarvis- Hero."
+      },
+      "error": null,
+      "started_at": "2026-11-14T08:53:44.402753",
+      "completed_at": "2026-11-14T08:53:44.685996"
+    },
+    {
+      "id": 3,
+      "name": "Deposit Antigravity Handoff Payload",
+      "description": "Deposit prompt into workspace/self_improvement/pending/ for immediate pickup",
+      "action_type": "ide_handoff",
+      "parameters": {
+        "project_path": "f:\\Work\\Jarvis- Hero"
+      },
+      "state": "completed",
+      "requires_approval": false,
+      "result": {
+        "file_deposited": "f:\\Work\\Jarvis- Hero\\workspace\\self_improvement\\pending\\directive_1794626624.md"
+      },
+      "error": null,
+      "started_at": "2026-11-14T08:53:44.686915",
+      "completed_at": "2026-11-14T08:53:44.688419"
+    },
+    {
+      "id": 4,
+      "name": "Verify Handoff & Summarize",
+      "description": "Verify file deposit and provide instructions to Rohan",
+      "action_type": "verify",
+      "parameters": {},
+      "state": "completed",
+      "requires_approval": false,
+      "result": {
+        "verified": true,
+        "summary": "All preceding workflow steps verified and delivered successfully."
+      },
+      "error": null,
+      "started_at": "2026-11-14T08:53:44.689383",
+      "completed_at": "2026-11-14T08:53:44.690440"
+    }
+  ],
+  "created_at": "2026-11-14T08:53:25.819571",
+  "updated_at": "2026-11-14T08:53:44.692910",
+  "context": {
+    "master_prompt": "/LangGraph, Anthropic Claude 3.5 Sonnet / OpenAI GPT-4o with Structured Outputs (Pydantic/Zod).\n        *   Database: PostgreSQL + `pgvector",
+    "app_launched": {
+      "success": true,
+      "app": "Antigravity IDE",
+      "message": "Right away, Sir. Opening Antigravity IDE loaded with the Jarvis project at Jarvis- Hero."
+    },
+    "deposited_file": "f:\\Work\\Jarvis- Hero\\workspace\\self_improvement\\pending\\directive_1794626624.md"
+  }
+}

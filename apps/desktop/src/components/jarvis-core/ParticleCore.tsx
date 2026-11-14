@@ -4,7 +4,20 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 
-export type CoreState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'gesture' | 'executing' | 'warning';
+export type CoreState =
+  | 'idle'
+  | 'listening'
+  | 'processing'
+  | 'thinking'
+  | 'speaking'
+  | 'executing'
+  | 'researching'
+  | 'waiting_for_approval'
+  | 'error'
+  | 'recovering'
+  | 'success'
+  | 'gesture'
+  | 'warning';
 
 interface ParticleCoreProps {
   state?: CoreState;
@@ -37,6 +50,12 @@ const STATE_PALETTES: Record<CoreState, PaletteColors> = {
     secondary: new THREE.Color(0.0, 0.96, 1.0),    // Electric Cyan
     fringe: new THREE.Color(0.55, 0.92, 1.0),      // Ice Blue
   },
+  processing: {
+    core: new THREE.Color(0.95, 1.0, 1.0),
+    primary: new THREE.Color(0.0, 0.88, 1.0),      // High-frequency Cyan
+    secondary: new THREE.Color(0.2, 0.55, 1.0),    // Cobalt Ray
+    fringe: new THREE.Color(0.4, 0.85, 1.0),       // Glacial Cyan
+  },
   thinking: {
     core: new THREE.Color(1.0, 0.92, 1.0),
     primary: new THREE.Color(0.75, 0.42, 1.0),     // Quantum Violet
@@ -61,11 +80,41 @@ const STATE_PALETTES: Record<CoreState, PaletteColors> = {
     secondary: new THREE.Color(0.2, 0.96, 0.76),   // Mint Green
     fringe: new THREE.Color(0.0, 0.96, 1.0),       // Cyan Flare
   },
+  researching: {
+    core: new THREE.Color(0.95, 0.95, 1.0),
+    primary: new THREE.Color(0.12, 0.48, 1.0),     // Deep Sapphire
+    secondary: new THREE.Color(0.0, 0.92, 0.95),   // Aquamarine
+    fringe: new THREE.Color(0.45, 0.22, 1.0),      // Royal Violet
+  },
+  waiting_for_approval: {
+    core: new THREE.Color(1.0, 0.98, 0.9),
+    primary: new THREE.Color(1.0, 0.72, 0.0),      // Safety Amber
+    secondary: new THREE.Color(1.0, 0.45, 0.05),   // Incandescent Orange
+    fringe: new THREE.Color(1.0, 0.85, 0.3),       // Radiant Gold
+  },
+  error: {
+    core: new THREE.Color(1.0, 0.92, 0.92),
+    primary: new THREE.Color(0.96, 0.22, 0.22),    // Ruby Red
+    secondary: new THREE.Color(1.0, 0.42, 0.15),   // Flare Coral
+    fringe: new THREE.Color(0.85, 0.08, 0.25),     // Crimson
+  },
   warning: {
     core: new THREE.Color(1.0, 0.92, 0.92),
     primary: new THREE.Color(0.96, 0.24, 0.24),    // Ruby Red
     secondary: new THREE.Color(0.98, 0.58, 0.1),   // Amber
     fringe: new THREE.Color(1.0, 0.18, 0.38),      // Crimson
+  },
+  recovering: {
+    core: new THREE.Color(0.95, 1.0, 0.98),
+    primary: new THREE.Color(0.35, 0.75, 1.0),     // Restorative Cyan
+    secondary: new THREE.Color(0.2, 0.92, 0.65),   // Healing Mint
+    fringe: new THREE.Color(0.65, 0.45, 1.0),      // Soft Amethyst
+  },
+  success: {
+    core: new THREE.Color(1.0, 1.0, 1.0),
+    primary: new THREE.Color(0.0, 1.0, 0.65),      // Emerald Brilliance
+    secondary: new THREE.Color(0.0, 0.92, 1.0),    // Electric Cyan
+    fringe: new THREE.Color(0.75, 1.0, 0.45),      // Aurora Lime
   },
 };
 
@@ -490,7 +539,16 @@ export default function ParticleCore({
         targetRotY += curHandX * 0.075;
         targetRotX += curHandY * 0.055;
       } else {
-        const spinSpeed = curState === 'thinking' ? 0.045 : 0.007;
+        const spinSpeed =
+          curState === 'thinking' || curState === 'processing'
+            ? 0.045
+            : curState === 'researching'
+            ? 0.032
+            : curState === 'waiting_for_approval'
+            ? 0.004
+            : curState === 'success'
+            ? 0.055
+            : 0.007;
         targetRotY += spinSpeed + mDrag.rotY * 0.02;
         targetRotX = Math.sin(elapsed * 0.35) * 0.12 + mDrag.rotX * 0.02;
       }
@@ -507,13 +565,29 @@ export default function ParticleCore({
       diffractionSpikes.rotation.z = elapsed * 0.05;
 
       // ── Optical Harmonic Dynamics (100% GPU Matrix Transforms — Zero Buffer Churn) ──
-      const waveSpeed = curState === 'speaking' ? 8.5 : curState === 'thinking' ? 5.5 : 2.0;
+      const waveSpeed =
+        curState === 'speaking'
+          ? 8.5
+          : curState === 'thinking' || curState === 'processing'
+          ? 6.0
+          : curState === 'waiting_for_approval'
+          ? 1.8
+          : curState === 'success'
+          ? 12.0
+          : 2.0;
       const wave = Math.sin(elapsed * waveSpeed) * 0.04;
       const audioExpansion = curState === 'speaking' ? (curAudio * 0.22) : curState === 'listening' ? (curAudio * 0.12) : 0;
       const dynamicScaleMod = 1.0 + wave + audioExpansion;
 
       // Independent multi-layer rotation on the GPU
-      const spinMult = curState === 'speaking' ? 1.6 : curState === 'thinking' ? 2.5 : 1.0;
+      const spinMult =
+        curState === 'speaking'
+          ? 1.6
+          : curState === 'thinking' || curState === 'processing'
+          ? 2.5
+          : curState === 'researching'
+          ? 1.8
+          : 1.0;
       streamPoints.rotation.z += 0.002 * spinMult;
       streamPoints.rotation.y = starburstRays.rotation.y + elapsed * 0.02 * spinMult;
       dustPoints.rotation.y += 0.001 * spinMult;
@@ -525,8 +599,12 @@ export default function ParticleCore({
         desiredScale *= 1.0 + Math.sin(elapsed * 15.0) * 0.12 + curAudio * 0.35;
       } else if (curState === 'listening') {
         desiredScale *= 1.0 + Math.sin(elapsed * 9.0) * 0.08;
-      } else if (curState === 'thinking') {
+      } else if (curState === 'thinking' || curState === 'processing' || curState === 'researching') {
         desiredScale *= 1.0 + Math.sin(elapsed * 12.0) * 0.06;
+      } else if (curState === 'waiting_for_approval') {
+        desiredScale *= 1.0 + Math.sin(elapsed * 3.0) * 0.12; // Inhalation breathing
+      } else if (curState === 'success') {
+        desiredScale *= 1.15 + Math.sin(elapsed * 18.0) * 0.04; // Celebratory bloom
       }
 
       desiredScale *= bootEasing; // Power-on growth

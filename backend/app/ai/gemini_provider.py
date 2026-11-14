@@ -90,6 +90,20 @@ class GeminiProvider:
             logger.warning("Gemini connectivity check failed: %s", exc)
             return False
 
+    async def generate(
+        self,
+        prompt: str,
+        system_instruction: str | None = None,
+        max_tokens: int = 1024,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Convenience method for one-shot text generation."""
+        return await self.chat(
+            message=prompt,
+            system_instruction=system_instruction,
+            **kwargs,
+        )
+
     async def chat(
         self,
         message: str,

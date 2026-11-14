@@ -25,6 +25,10 @@ import {
 } from 'lucide-react';
 import ParticleCore, { CoreState } from '../components/jarvis-core/ParticleCore';
 import CommandHudDrawer, { HudTab } from '../components/jarvis-core/CommandHudDrawer';
+import WeatherWidget from '../components/widgets/WeatherWidget';
+import TimerWidget from '../components/widgets/TimerWidget';
+import TaskScheduleWidget from '../components/widgets/TaskScheduleWidget';
+import ActivityOverlayHUD from '../components/widgets/ActivityOverlayHUD';
 import { gestureEngine, GestureData } from '../components/gesture-controls/GestureEngine';
 import { authApi, setToken, getToken } from '../services/api';
 
@@ -42,7 +46,7 @@ export default function JarvisCommandCore() {
   const [lastUserHeard, setLastUserHeard] = useState<string>('');
   const [liveTranscript, setLiveTranscript] = useState<string>('');
   const [lastJarvisReply, setLastJarvisReply] = useState<string>(
-    'Systems fully online and operational, Sir. All Mark IX laptop control directives and specialist agents standing by. What shall we execute?'
+    'Systems fully online and operational, Sir. All Mark X computer control directives and specialist agents standing by. What shall we execute?'
   );
   const [lastExecutionLatency, setLastExecutionLatency] = useState<string>('INSTANT LOCAL DIRECTIVE');
   const [gestureData, setGestureData] = useState<GestureData>({
@@ -67,6 +71,26 @@ export default function JarvisCommandCore() {
   const [performanceMode, setPerformanceMode] = useState<'eco' | 'balanced' | 'turbo'>('balanced');
   const [isBooting, setIsBooting] = useState<boolean>(true);
   const [bootPhase, setBootPhase] = useState<string>('IGNITING CHROMATIC SINGULARITY MATRIX...');
+
+  // ── Pop-Up Widgets & Desktop Activity Overlay States ────────────────────────
+  const [showWeather, setShowWeather] = useState<boolean>(false);
+  const [showTimer, setShowTimer] = useState<boolean>(false);
+  const [showSchedule, setShowSchedule] = useState<boolean>(false);
+  const [activeWorkflow, setActiveWorkflow] = useState<{
+    isVisible: boolean;
+    currentAction: string;
+    assignedAgent: string;
+    currentStep: number;
+    totalSteps: number;
+    isPaused: boolean;
+  }>({
+    isVisible: false,
+    currentAction: '',
+    assignedAgent: 'MASTER ORCHESTRATOR',
+    currentStep: 1,
+    totalSteps: 4,
+    isPaused: false,
+  });
 
   // ── HUD Drawer Navigation State ─────────────────────────────────────────────
   const [isHudOpen, setIsHudOpen] = useState<boolean>(false);
@@ -402,6 +426,147 @@ export default function JarvisCommandCore() {
       const reply = 'Minimizing HUD overlay. Returning to holographic core, Sir.';
       setLastJarvisReply(reply);
       speakBritishReply(reply);
+      setIsProcessing(false);
+      return;
+    }
+
+    // ── Emergency Stop & Task Cancellation ────────────────────────────────────
+    if (/\b(?:stop task|cancel task|pause task|emergency stop|halt|stop execution)\b/i.test(cleanLower)) {
+      setActiveWorkflow((prev) => ({ ...prev, isVisible: false }));
+      stopAllSpeech();
+      setCoreState('idle');
+      const reply = 'All active autonomous operations and background tasks halted immediately, Sir.';
+      setLastJarvisReply(reply);
+      speakBritishReply(reply);
+      setIsProcessing(false);
+      return;
+    }
+
+    // ── Contextual Futuristic Pop-Up Widgets ──────────────────────────────────
+    if (/\b(?:weather|temperature|forecast|climate)\b/i.test(cleanLower)) {
+      setShowWeather(true);
+      setCoreState('success');
+      const reply = 'Displaying real-time atmospheric telemetry and meteorological forecast for your coordinates, Sir.';
+      setLastJarvisReply(reply);
+      setLastExecutionLatency('<10ms [POPUP WIDGET]');
+      speakBritishReply(reply);
+      setIsProcessing(false);
+      return;
+    }
+
+    if (/\b(?:timer|countdown|stopwatch|pomodoro)\b/i.test(cleanLower)) {
+      setShowTimer(true);
+      setCoreState('success');
+      const reply = 'Activating chronometric focus timer, Sir. Ready for your session.';
+      setLastJarvisReply(reply);
+      setLastExecutionLatency('<10ms [POPUP WIDGET]');
+      speakBritishReply(reply);
+      setIsProcessing(false);
+      return;
+    }
+
+    if (/\b(?:schedule|tasks before|plan my day|timeline|deadlines|tasks to finish)\b/i.test(cleanLower)) {
+      setShowSchedule(true);
+      setCoreState('success');
+      const reply = 'Calculating optimized sequential schedule for your evening deliverables, Sir. Schedule planner active.';
+      setLastJarvisReply(reply);
+      setLastExecutionLatency('<10ms [POPUP WIDGET]');
+      speakBritishReply(reply);
+      setIsProcessing(false);
+      return;
+    }
+
+    // ── Compound Research & PDF Directive ─────────────────────────────────────
+    if (/\bresearch\b/i.test(cleanLower) && /\b(?:pdf|document|report)\b/i.test(cleanLower)) {
+      setCoreState('researching');
+      const topicMatch = text.replace(/(?:can you|please|just)?\s*research/i, '').replace(/(?:and\s+)?(?:make|create|generate)\s+(?:a\s+)?(?:pdf|document|report)/i, '').trim();
+      const targetTopic = topicMatch || 'Autonomous AI Architectures';
+
+      setActiveWorkflow({
+        isVisible: true,
+        currentAction: `Gathering authoritative sources & compiling research dossier on ${targetTopic}...`,
+        assignedAgent: 'RESEARCH AGENT & ORACLE',
+        currentStep: 1,
+        totalSteps: 4,
+        isPaused: false,
+      });
+
+      const reply = `Right away, Sir. Initiating multi-source web research on "${targetTopic}" and generating a verified PDF dossier.`;
+      setLastJarvisReply(reply);
+      speakBritishReply(reply);
+
+      try {
+        const token = getToken();
+        fetch(`${API_BASE}/api/v1/tasks/workflows/research-pdf`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ topic: targetTopic }),
+        }).then(async (res) => {
+          if (res.ok) {
+            setActiveWorkflow((prev) => ({
+              ...prev,
+              currentAction: `Research synthesis complete. Document rendered to data/ folder.`,
+              currentStep: 4,
+            }));
+            setTimeout(() => {
+              setCoreState('success');
+              setActiveWorkflow((prev) => ({ ...prev, isVisible: false }));
+            }, 3000);
+          }
+        });
+      } catch {}
+
+      setIsProcessing(false);
+      return;
+    }
+
+    // ── Compound Prompt to Antigravity IDE Directive ──────────────────────────
+    if (/\b(?:prompt.+?antigravity|antigravity.+?prompt|prompt it to make it better)\b/i.test(cleanLower)) {
+      setCoreState('executing');
+      setActiveWorkflow({
+        isVisible: true,
+        currentAction: 'Synthesizing master engineering prompt & opening Antigravity IDE workspace...',
+        assignedAgent: 'ATLAS & ORCHESTRATOR',
+        currentStep: 1,
+        totalSteps: 4,
+        isPaused: false,
+      });
+
+      const reply = 'Executing compound directive, Sir. Formulating master enhancement prompt and launching Antigravity IDE with your Jarvis project.';
+      setLastJarvisReply(reply);
+      speakBritishReply(reply);
+
+      try {
+        const token = getToken();
+        fetch(`${API_BASE}/api/v1/tasks/workflows/prompt-to-ide`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            concept: text,
+            ide: 'antigravity',
+            project_path: 'f:\\Work\\Jarvis- Hero',
+          }),
+        }).then(async (res) => {
+          if (res.ok) {
+            setActiveWorkflow((prev) => ({
+              ...prev,
+              currentAction: 'Antigravity IDE running. Prompt deposited into pending handoff queue.',
+              currentStep: 4,
+            }));
+            setTimeout(() => {
+              setCoreState('success');
+              setActiveWorkflow((prev) => ({ ...prev, isVisible: false }));
+            }, 3000);
+          }
+        });
+      } catch {}
+
       setIsProcessing(false);
       return;
     }
@@ -759,7 +924,7 @@ export default function JarvisCommandCore() {
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold tracking-widest text-white">PROJECT J.A.R.V.I.S.</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 border border-cyan-400/50 text-cyan-300 font-semibold shadow-[0_0_10px_rgba(6,182,212,0.3)]">
-                MARK IX // MASTER CONTROLLER
+                MARK X // MASTER CONTROLLER
               </span>
             </div>
             <div className="text-[10px] text-cyan-500/80 tracking-wider">
@@ -894,6 +1059,41 @@ export default function JarvisCommandCore() {
         onSelectVoice={setSelectedVoice}
         availableVoices={availableVoices}
       />
+
+      {/* ── Real-Time Desktop Activity Overlay HUD ───────────────────────────── */}
+      <ActivityOverlayHUD
+        isVisible={activeWorkflow.isVisible}
+        currentAction={activeWorkflow.currentAction}
+        assignedAgent={activeWorkflow.assignedAgent}
+        currentStep={activeWorkflow.currentStep}
+        totalSteps={activeWorkflow.totalSteps}
+        isPaused={activeWorkflow.isPaused}
+        onPauseToggle={() =>
+          setActiveWorkflow((prev) => ({ ...prev, isPaused: !prev.isPaused }))
+        }
+        onStopTask={() => {
+          setActiveWorkflow((prev) => ({ ...prev, isVisible: false }));
+          stopAllSpeech();
+          setCoreState('idle');
+          speakBritishReply('Task terminated by user override, Sir.');
+        }}
+        onClose={() =>
+          setActiveWorkflow((prev) => ({ ...prev, isVisible: false }))
+        }
+      />
+
+      {/* ── Contextual Pop-Up Widgets (Weather, Timers, Schedule) ────────────── */}
+      <AnimatePresence>
+        {showWeather && (
+          <WeatherWidget onClose={() => setShowWeather(false)} />
+        )}
+        {showTimer && (
+          <TimerWidget onClose={() => setShowTimer(false)} />
+        )}
+        {showSchedule && (
+          <TaskScheduleWidget onClose={() => setShowSchedule(false)} />
+        )}
+      </AnimatePresence>
 
       {/* ── Optical Sensor PIP Overlay ───────────────────────────────────────── */}
       <AnimatePresence>
@@ -1035,6 +1235,10 @@ export default function JarvisCommandCore() {
         <div className="flex items-center gap-2 overflow-x-auto max-w-full py-0.5">
           {[
             { label: '⚡ Antigravity (Jarvis)', cmd: 'open antigravity and go to jarvis project' },
+            { label: '🌦️ Weather', cmd: 'show weather' },
+            { label: '⏱️ Focus Timer', cmd: 'start timer' },
+            { label: '📅 Schedule Planner', cmd: 'plan schedule' },
+            { label: '🔬 Research & PDF', cmd: 'research quantum computing and create a pdf' },
             { label: '🌐 Open Chrome', cmd: 'open chrome' },
             { label: '🎵 Open Spotify', cmd: 'open spotify' },
             { label: '💻 Open VS Code', cmd: 'open vscode' },
