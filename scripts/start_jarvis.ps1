@@ -1,5 +1,5 @@
 # PROJECT J.A.R.V.I.S. Desktop Launcher (PowerShell)
-# Boots the FastAPI Python backend and launches the Tauri desktop application.
+# Boots the FastAPI Python backend and launches the dedicated Command Centre.
 
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "          PROJECT J.A.R.V.I.S. MASTER COMMAND CENTRE      " -ForegroundColor Cyan
@@ -9,28 +9,29 @@ $WorkspaceRoot = "f:\Work\Jarvis- Hero"
 Set-Location $WorkspaceRoot
 $env:PYTHONPATH = $WorkspaceRoot
 
-Write-Host "[1/3] Validating system health and local database..." -ForegroundColor Yellow
-python -c "from backend.app.core.config import settings; print(f'Config verified. Database at {settings.database_url}')"
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "[ERROR] Python environment validation failed." -ForegroundColor Red
-    exit 1
+# Check if backend is alive
+$BackendUp = $false
+try {
+    $res = Invoke-WebRequest -Uri "http://127.0.0.1:8765/health" -TimeoutSec 1 -UseBasicParsing -ErrorAction SilentlyContinue
+    if ($res.StatusCode -eq 200) { $BackendUp = $true }
+} catch {}
+
+if (-not $BackendUp) {
+    Write-Host "[1/2] Starting JARVIS backend daemon on http://127.0.0.1:8765..." -ForegroundColor Green
+    Start-Process python -ArgumentList "-m uvicorn backend.app.main:app --host 127.0.0.1 --port 8765 --log-level warning" -WindowStyle Hidden
+    Start-Sleep -Seconds 1
 }
 
-Write-Host "[2/3] Starting JARVIS backend daemon on http://127.0.0.1:8765..." -ForegroundColor Green
-$BackendJob = Start-Job -ScriptBlock {
-    param($root)
-    Set-Location $root
-    $env:PYTHONPATH = $root
-    python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8765 --log-level info
-} -ArgumentList $WorkspaceRoot
+Write-Host "[2/2] Launching JARVIS Iron Man Command Centre..." -ForegroundColor Cyan
+$ChromePath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+$EdgePath = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 
-Start-Sleep -Seconds 3
+if (Test-Path $ChromePath) {
+    Start-Process $ChromePath -ArgumentList "--app=http://127.0.0.1:8765 --window-size=1360,900"
+} elseif (Test-Path $EdgePath) {
+    Start-Process $EdgePath -ArgumentList "--app=http://127.0.0.1:8765 --window-size=1360,900"
+} else {
+    Start-Process "http://127.0.0.1:8765"
+}
 
-Write-Host "[3/3] Launching JARVIS Desktop Command Centre UI..." -ForegroundColor Cyan
-Set-Location "$WorkspaceRoot\apps\desktop"
-npm run tauri dev
-
-# Clean up backend job when frontend closes
-Stop-Job $BackendJob
-Remove-Job $BackendJob
-Write-Host "Systems stood down. Good day, sir." -ForegroundColor Cyan
+Write-Host "J.A.R.V.I.S. Command Centre online and ready." -ForegroundColor Green

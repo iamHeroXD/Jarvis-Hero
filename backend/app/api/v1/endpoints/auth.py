@@ -199,11 +199,22 @@ async def get_me(current_user: Annotated[User, Depends(get_current_user)]):
 
 
 @router.post("/quick-unlock", response_model=Token)
-async def quick_unlock(db: Annotated[AsyncSession, Depends(get_db)]):
+async def quick_unlock(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
     """
     Local console authentication for the primary owner.
     Enables instant one-click desktop session access without manual credential typing.
+    Strictly restricted to localhost connections.
     """
+    client_host = getattr(getattr(request, "client", None), "host", "127.0.0.1")
+    if client_host not in ("127.0.0.1", "localhost", "::1", "testclient"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Quick unlock is only permitted from the local desktop host.",
+        )
+
     result = await db.execute(
         select(User).where(User.is_owner == True, User.is_active == True).order_by(User.id.desc())
     )

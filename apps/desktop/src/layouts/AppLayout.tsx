@@ -27,7 +27,7 @@ import VoiceHUD from '../components/voice/VoiceHUD';
 import { clsx } from 'clsx';
 
 const NAV_ITEMS = [
-  { path: '/', icon: LayoutDashboard, label: 'Overview' },
+  { path: '/dashboard', icon: LayoutDashboard, label: 'Overview' },
   { path: '/mission-control', icon: Flame, label: 'Mission Control' },
   { path: '/chat', icon: MessageSquare, label: 'Chat' },
   { path: '/evolution', icon: Sparkles, label: 'Evolution Centre' },

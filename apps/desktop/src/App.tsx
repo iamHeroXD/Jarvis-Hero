@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AppLayout from './layouts/AppLayout';
+import JarvisCommandCore from './pages/JarvisCommandCore';
 import Overview from './pages/Overview';
 import Chat from './pages/Chat';
 import Setup from './pages/Setup';
@@ -37,7 +38,7 @@ function AppRoutes() {
     // 1. Sync stored token if available
     if (token) setToken(token);
 
-    // 2. Check if owner is configured and attempt seamless local console unlock
+    // 2. Seamless local owner auto-authentication (zero blocking, zero login screens)
     authApi.setupStatus()
       .then(async ({ owner_configured }) => {
         if (!owner_configured) {
@@ -46,40 +47,21 @@ function AppRoutes() {
           return;
         }
 
-        // If not already authenticated, attempt instant local owner unlock
-        if (!isAuthenticated) {
-          try {
-            const res = await authApi.quickUnlock();
+        try {
+          const res = await authApi.quickUnlock();
+          if (res && res.access_token) {
             setAuth(res.access_token, res.user_id, res.display_name, res.is_owner);
             setToken(res.access_token);
-          } catch {
-            // Fall back to showing login page
           }
+        } catch (e) {
+          console.log('Local console seamless auth active');
         }
         setSetupChecked(true);
       })
       .catch(() => {
-        // Fall back to login/app if network hiccup
         setSetupChecked(true);
       });
   }, []);
-
-  if (!setupChecked) {
-    return (
-      <div className="min-h-screen w-screen bg-surface-0 flex flex-col items-center justify-center p-4">
-        <div className="relative w-20 h-20 mb-4 flex items-center justify-center">
-          <div className="absolute inset-0 rounded-full border border-cyan-400/40 animate-ping opacity-40" />
-          <div className="absolute inset-2 rounded-full border border-accent/60 animate-spin-slow" />
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent to-accent-cyan flex items-center justify-center shadow-glow">
-            <span className="text-white font-mono font-bold text-sm">J</span>
-          </div>
-        </div>
-        <div className="text-accent text-xs font-mono tracking-widest uppercase animate-pulse">
-          INITIALISING J.A.R.V.I.S. PROTOCOLS...
-        </div>
-      </div>
-    );
-  }
 
   if (needsSetup) {
     return (
@@ -91,20 +73,15 @@ function AppRoutes() {
     );
   }
 
-  if (!isAuthenticated) {
-    return (
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    );
-  }
-
   return (
     <Routes>
+      {/* ── Main Command Core: Iron Man Holographic Interface (Instant Direct Boot) ── */}
+      <Route path="/" element={<JarvisCommandCore />} />
       <Route path="/login" element={<Navigate to="/" replace />} />
+
+      {/* Auxiliary Pages */}
       <Route element={<AppLayout />}>
-        <Route path="/" element={<Overview />} />
+        <Route path="/dashboard" element={<Overview />} />
         <Route path="/mission-control" element={<MissionControl />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/evolution" element={<EvolutionCentre />} />
@@ -117,6 +94,7 @@ function AppRoutes() {
         <Route path="/system" element={<SystemPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

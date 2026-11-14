@@ -143,6 +143,16 @@ class SystemMonitor:
 
     def get_status_dict(self) -> dict:
         s = self._snapshot
+        battery_pct = None
+        battery_plugged = None
+        try:
+            b = psutil.sensors_battery()
+            if b is not None:
+                battery_pct = int(b.percent)
+                battery_plugged = bool(b.power_plugged)
+        except Exception:
+            pass
+
         return {
             "timestamp": s.timestamp.isoformat(),
             "cpu_percent": s.cpu_percent,
@@ -154,6 +164,8 @@ class SystemMonitor:
             "jarvis_cpu_percent": s.jarvis_cpu_percent,
             "jarvis_ram_mb": s.jarvis_ram_mb,
             "internet_available": s.internet_available,
+            "battery_percent": battery_pct,
+            "battery_plugged": battery_plugged,
         }
 
     def should_reduce_load(self) -> bool:

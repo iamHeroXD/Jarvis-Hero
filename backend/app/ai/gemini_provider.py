@@ -1,7 +1,7 @@
 """
 JARVIS AI Provider — Google Gemini
-Uses google-genai 3.0.0 SDK with client.interactions.create() API.
-Supports streaming, stateful conversations, and function calling.
+Uses official google-genai SDK with streaming, fallback model cascading,
+and multi-turn conversational memory.
 """
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import asyncio
 from typing import AsyncGenerator, Any
 
 from google import genai
+from google.genai import types
 
 from backend.app.core.config import settings
 from backend.app.core.logging_config import get_logger
@@ -16,12 +17,18 @@ from backend.app.security.auth import get_gemini_api_key
 
 logger = get_logger("ai.gemini")
 
+CANDIDATE_MODELS = [
+    "gemini-3.5-flash",
+    "gemini-3.8-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.7-flash",
+]
+
 
 class GeminiProvider:
     """
-    Wraps google-genai interactions API.
-    One instance per application lifecycle.
-    API key is loaded from Windows Credential Manager at first use.
+    Wraps google-genai models API with cascading fallback and streaming.
+    API key is loaded from Windows Credential Manager.
     """
 
     def __init__(self) -> None:
@@ -38,12 +45,12 @@ class GeminiProvider:
         if not api_key:
             raise RuntimeError(
                 "Gemini API key not configured. "
-                "Please add your API key in Settings → AI."
+                "Please configure your API key in Settings."
             )
 
         self._client = genai.Client(api_key=api_key)
         self._available = True
-        logger.info("Gemini client initialised.")
+        logger.info("Gemini client initialised successfully.")
         return self._client
 
     @property
@@ -55,34 +62,31 @@ class GeminiProvider:
         return self._last_error
 
     def reset_client(self) -> None:
-        """Force re-initialisation (e.g., after API key change)."""
+        """Force re-initialisation (e.g. after API key change)."""
         self._client = None
         self._available = False
         self._last_error = None
 
     async def check_connectivity(self) -> bool:
-        """
-        Verify the API key and connectivity with a minimal request.
-        Returns True if reachable.
-        """
+        """Verify the API key and connectivity with a minimal request."""
         try:
             client = self._get_client()
-            # Use aio for async
-            interaction = await client.aio.interactions.create(
-                model=settings.primary_model,
-                input="ping",
+            res = await asyncio.to_thread(
+                lambda: client.models.generate_content(
+                    model=settings.primary_model,
+                    contents="ping",
+                )
             )
-            self._available = True
-            self._last_error = None
-            logger.info("Gemini connectivity check passed.")
-            return True
-        except RuntimeError as exc:
-            self._last_error = str(exc)
-            self._available = False
+            if res and res.text:
+                self._available = True
+                self._last_error = None
+                from backend.app.ai.router import ai_router
+                ai_router.update_connectivity(internet=True, gemini=True, ollama=settings.ollama_enabled)
+                logger.info("Gemini connectivity verified online.")
+                return True
             return False
         except Exception as exc:
             self._last_error = str(exc)
-            self._available = False
             logger.warning("Gemini connectivity check failed: %s", exc)
             return False
 
@@ -94,40 +98,65 @@ class GeminiProvider:
         model: str | None = None,
         temperature: float = 0.7,
         store: bool = True,
+        history: list[dict[str, str]] | None = None,
     ) -> dict[str, Any]:
         """
-        Single-turn or multi-turn chat.
-        Returns a dict with 'text', 'interaction_id', 'tokens', 'error'.
+        Chat with fallback model cascading and multi-turn conversational memory.
         """
         try:
             client = self._get_client()
-            model_name = model or settings.primary_model
-
-            kwargs: dict[str, Any] = {
-                "model": model_name,
-                "input": message,
-                "store": store,
-            }
-            if system_instruction:
-                kwargs["system_instruction"] = system_instruction
-            if previous_interaction_id:
-                kwargs["previous_interaction_id"] = previous_interaction_id
-
-            interaction = await client.aio.interactions.create(**kwargs)
-
-            return {
-                "text": interaction.output_text or "",
-                "interaction_id": interaction.id,
-                "model": model_name,
-                "tokens": getattr(getattr(interaction, "usage", None), "total_tokens", None),
-                "error": None,
-            }
-
         except RuntimeError as exc:
             return {"text": "", "interaction_id": None, "model": None, "tokens": None, "error": str(exc)}
-        except Exception as exc:
-            logger.error("Gemini chat error: %s", exc)
-            return {"text": "", "interaction_id": None, "model": None, "tokens": None, "error": str(exc)}
+
+        models_to_try = [model or settings.primary_model] + [
+            m for m in CANDIDATE_MODELS if m != (model or settings.primary_model)
+        ]
+
+        config = types.GenerateContentConfig(
+            temperature=temperature,
+            max_output_tokens=1024,
+            system_instruction=system_instruction or (
+                "You are J.A.R.V.I.S., an extraordinarily capable, witty, loyal, "
+                "and intelligent personal AI assistant to your owner, Rohan. Speak with British elegance. "
+                "Provide complete, direct, intelligent responses."
+            ),
+        )
+
+        contents_list: list[Any] = []
+        if history:
+            for item in history:
+                role = "user" if item.get("role") in ("user", "human") else "model"
+                text = item.get("text") or item.get("content") or ""
+                if text.strip():
+                    contents_list.append(types.Content(role=role, parts=[types.Part.from_text(text=text.strip())]))
+        contents_list.append(types.Content(role="user", parts=[types.Part.from_text(text=message.strip())]))
+
+        last_err: Exception | None = None
+        for candidate_model in models_to_try:
+            try:
+                response = await asyncio.to_thread(
+                    lambda: client.models.generate_content(
+                        model=candidate_model,
+                        contents=contents_list,
+                        config=config,
+                    )
+                )
+                text = response.text or ""
+                self._available = True
+                return {
+                    "text": text,
+                    "interaction_id": None,
+                    "model": candidate_model,
+                    "tokens": None,
+                    "error": None,
+                }
+            except Exception as err:
+                last_err = err
+                logger.warning("Model %s failed in chat: %s. Trying next...", candidate_model, err)
+                continue
+
+        error_msg = str(last_err) if last_err else "Failed to generate AI response."
+        return {"text": "", "interaction_id": None, "model": None, "tokens": None, "error": error_msg}
 
     async def stream_chat(
         self,
@@ -136,88 +165,93 @@ class GeminiProvider:
         previous_interaction_id: str | None = None,
         model: str | None = None,
         store: bool = True,
+        history: list[dict[str, str]] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """
-        Streaming chat. Yields dicts:
-          {'type': 'delta', 'text': '...'}
-          {'type': 'completed', 'interaction_id': '...', 'tokens': N}
-          {'type': 'error', 'message': '...'}
+        Real-time streaming chat with fallback cascading and conversational memory.
+        Yields {'type': 'delta', 'text': '...'} and {'type': 'completed', ...}.
         """
         try:
             client = self._get_client()
-            model_name = model or settings.primary_model
-
-            kwargs: dict[str, Any] = {
-                "model": model_name,
-                "input": message,
-                "stream": True,
-                "store": store,
-            }
-            if system_instruction:
-                kwargs["system_instruction"] = system_instruction
-            if previous_interaction_id:
-                kwargs["previous_interaction_id"] = previous_interaction_id
-
-            interaction_id: str | None = None
-            total_tokens: int | None = None
-
-            # client.interactions.create with stream=True returns an iterable
-            # Use asyncio.to_thread since the sync iterator may block
-            async for event in await asyncio.to_thread(
-                lambda: list(client.interactions.create(**kwargs))
-            ):
-                pass  # Will restructure below
-
-            # Correct async streaming approach:
-            stream = client.interactions.create(**kwargs)
-            for event in stream:
-                event_type = getattr(event, "event_type", None)
-                if event_type == "step.delta":
-                    delta = getattr(event, "delta", None)
-                    if delta and getattr(delta, "type", None) == "text":
-                        yield {"type": "delta", "text": delta.text}
-                elif event_type == "interaction.created":
-                    interaction_obj = getattr(event, "interaction", None)
-                    if interaction_obj:
-                        interaction_id = getattr(interaction_obj, "id", None)
-                elif event_type == "interaction.completed":
-                    interaction_obj = getattr(event, "interaction", None)
-                    if interaction_obj:
-                        interaction_id = interaction_id or getattr(interaction_obj, "id", None)
-                        usage = getattr(interaction_obj, "usage", None)
-                        if usage:
-                            total_tokens = getattr(usage, "total_tokens", None)
-
-            yield {
-                "type": "completed",
-                "interaction_id": interaction_id,
-                "model": model_name,
-                "tokens": total_tokens,
-            }
-
         except RuntimeError as exc:
             yield {"type": "error", "message": str(exc)}
-        except Exception as exc:
-            logger.error("Gemini stream error: %s", exc)
-            yield {"type": "error", "message": str(exc)}
+            return
+
+        models_to_try = [model or settings.primary_model] + [
+            m for m in CANDIDATE_MODELS if m != (model or settings.primary_model)
+        ]
+
+        config = types.GenerateContentConfig(
+            temperature=0.7,
+            max_output_tokens=1024,
+            system_instruction=system_instruction or (
+                "You are J.A.R.V.I.S., an extraordinarily capable, witty, loyal, "
+                "and intelligent personal AI assistant to your owner, Rohan. Keep spoken answers engaging, "
+                "direct, and speak with authentic British charm."
+            ),
+        )
+
+        contents_list: list[Any] = []
+        if history:
+            for item in history:
+                role = "user" if item.get("role") in ("user", "human") else "model"
+                text = item.get("text") or item.get("content") or ""
+                if text.strip():
+                    contents_list.append(types.Content(role=role, parts=[types.Part.from_text(text=text.strip())]))
+        contents_list.append(types.Content(role="user", parts=[types.Part.from_text(text=message.strip())]))
+
+        succeeded = False
+        last_err: Exception | None = None
+
+        for candidate_model in models_to_try:
+            try:
+                def get_stream():
+                    return client.models.generate_content_stream(
+                        model=candidate_model,
+                        contents=contents_list,
+                        config=config,
+                    )
+
+                stream = await asyncio.to_thread(get_stream)
+
+                for chunk in stream:
+                    if chunk and chunk.text:
+                        yield {"type": "delta", "text": chunk.text}
+
+                succeeded = True
+                self._available = True
+                yield {
+                    "type": "completed",
+                    "interaction_id": None,
+                    "model": candidate_model,
+                    "tokens": None,
+                }
+                break
+            except Exception as err:
+                last_err = err
+                logger.warning("Stream with %s failed: %s. Trying next...", candidate_model, err)
+                continue
+
+        if not succeeded:
+            error_msg = str(last_err) if last_err else "Stream generation failed."
+            yield {"type": "error", "message": error_msg}
 
     async def transcribe_audio(self, audio_data: bytes, mime_type: str = "audio/wav") -> str | None:
         """
-        Transcribe audio bytes using Gemini STT.
-        Returns the transcription text or None on failure.
+        Transcribe audio bytes using Gemini Multimodal Audio.
         """
         try:
-            import base64
             client = self._get_client()
-            interaction = await client.aio.interactions.create(
-                model=settings.stt_model,
-                input=[
-                    {"type": "text", "text": "Transcribe this audio exactly."},
-                    {"type": "audio", "data": base64.b64encode(audio_data).decode(), "mime_type": mime_type},
-                ],
-                store=False,
+            res = await asyncio.to_thread(
+                lambda: client.models.generate_content(
+                    model=settings.primary_model,
+                    contents=[
+                        types.Part.from_bytes(data=audio_data, mime_type=mime_type),
+                        "Transcribe the spoken audio exactly. Return only the transcription text.",
+                    ],
+                )
             )
-            return interaction.output_text
+            return res.text.strip() if res and res.text else None
         except Exception as exc:
             logger.error("Transcription error: %s", exc)
             return None
@@ -228,29 +262,12 @@ class GeminiProvider:
         voice_name: str | None = None,
     ) -> bytes | None:
         """
-        Convert text to speech using Gemini TTS.
+        Convert text to speech using Windows SAPI 5 fallback or Gemini audio generation.
         Returns WAV audio bytes or None on failure.
         """
         try:
-            import base64
-            client = self._get_client()
-            voice = voice_name or settings.tts_voice_name
-            interaction = await client.aio.interactions.create(
-                model=settings.tts_model,
-                input=text,
-                generation_config={
-                    "response_modalities": ["audio"],
-                    "speech_config": {
-                        "voice_config": {
-                            "prebuilt_voice_config": {"voice_name": voice}
-                        }
-                    },
-                },
-                store=False,
-            )
-            if interaction.output_audio:
-                return base64.b64decode(interaction.output_audio.data)
-            return None
+            from backend.app.voice.voice_service import voice_service
+            return await voice_service.synthesize_speech(text)
         except Exception as exc:
             logger.error("TTS error: %s", exc)
             return None

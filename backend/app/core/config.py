@@ -58,7 +58,7 @@ class JarvisSettings(BaseSettings):
     # API key comes from Windows Credential Manager, NOT from here.
     # This field is a runtime-populated cache only.
     gemini_api_key: str | None = Field(default=None, exclude=True)
-    primary_model: str = "gemini-3.8-flash"
+    primary_model: str = "gemini-3.5-flash"
     reasoning_model: str = "gemini-4-argon"
     tts_model: str = "gemini-3.8-flash-tts"
     stt_model: str = "gemini-3.5-transcribe"

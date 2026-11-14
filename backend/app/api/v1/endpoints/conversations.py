@@ -9,7 +9,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -262,6 +262,36 @@ async def websocket_chat(websocket: WebSocket, db: AsyncSession = Depends(get_db
 
             await websocket.send_json({"type": "conversation_id", "value": convo.id})
 
+            # ── Fast Local Directive Execution (Instant Laptop Control <10ms) ──
+            from backend.app.tools.laptop_controller import laptop_controller
+
+            directive_res = laptop_controller.execute_directive(message_text)
+            if directive_res is not None:
+                reply_text = directive_res.get("message", "Directive executed successfully, Sir.")
+                asst_msg = Message(
+                    conversation_id=convo.id,
+                    role="assistant",
+                    content=reply_text,
+                    ai_provider="local_controller",
+                    model_name="windows_executor",
+                )
+                db.add(asst_msg)
+                await db.flush()
+
+                action_desc = directive_res.get("action", "Directive executed")
+                await websocket.send_json({
+                    "type": "tool_activity",
+                    "action": f"Local Directive: {action_desc}",
+                })
+                await websocket.send_json({"type": "delta", "text": reply_text})
+                await websocket.send_json({
+                    "type": "completed",
+                    "message_id": asst_msg.id,
+                    "interaction_id": None,
+                    "conversation_id": convo.id,
+                })
+                continue
+
             # Check if this is an adaptive correction via JIEE
             dispatch_message = message_text
             if jiee.detect_correction_intent(message_text):
@@ -297,6 +327,25 @@ async def websocket_chat(websocket: WebSocket, db: AsyncSession = Depends(get_db
                 profile_type=profile_manager.active_profile.value,
             )
 
+            # Auto-extract and inject long-term memories
+            from backend.app.ai.memory_manager import memory_manager
+            try:
+                await memory_manager.extract_and_store_memories(
+                    user_id=user.id,
+                    message=message_text,
+                    conversation_id=convo.id,
+                    db=db,
+                )
+                mems = await memory_manager.retrieve_relevant_memories(
+                    user_id=user.id,
+                    query=message_text,
+                    db=db,
+                    limit=4,
+                )
+                system_prompt += memory_manager.format_memories_for_prompt(mems)
+            except Exception as e:
+                logger.debug("Memory engine non-blocking error: %s", e)
+
             # Stream AI response
             full_response = ""
             interaction_id: str | None = None
@@ -307,11 +356,25 @@ async def websocket_chat(websocket: WebSocket, db: AsyncSession = Depends(get_db
                     "action": "Consulting intelligence core...",
                 })
 
+            # Retrieve last 10 turns for multi-turn conversational context
+            history_res = await db.execute(
+                select(Message)
+                .where(Message.conversation_id == convo.id)
+                .order_by(Message.id.desc())
+                .limit(10)
+            )
+            prior_msgs = list(reversed(history_res.scalars().all()))
+            history_payload = []
+            for m in prior_msgs[:-1]:
+                role = "user" if m.role == "user" else "model"
+                history_payload.append({"role": role, "text": m.content})
+
             async for chunk in gemini_provider.stream_chat(
                 message=dispatch_message,
                 system_instruction=system_prompt,
                 previous_interaction_id=convo.last_interaction_id,
                 model=settings.primary_model,
+                history=history_payload,
             ):
                 chunk_type = chunk.get("type")
                 if chunk_type == "delta":
@@ -353,6 +416,177 @@ async def websocket_chat(websocket: WebSocket, db: AsyncSession = Depends(get_db
             await websocket.send_json({"type": "error", "message": "Connection error. Please reconnect."})
         except Exception:
             pass
+
+
+async def get_chat_user(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> User:
+    """Authenticate user via JWT or fallback to local owner for desktop console."""
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()
+        from backend.app.security.auth import verify_token
+        payload = verify_token(token)
+        if payload and payload.get("sub"):
+            try:
+                user_id = int(payload.get("sub"))
+                res = await db.execute(select(User).where(User.id == user_id, User.is_active == True))
+                user = res.scalar_one_or_none()
+                if user:
+                    return user
+            except Exception:
+                pass
+
+    # Local console fallback: automatically authenticate owner when called from localhost
+    client_host = getattr(getattr(request, "client", None), "host", "127.0.0.1")
+    if client_host in ("127.0.0.1", "localhost", "::1", "testclient"):
+        res = await db.execute(select(User).where(User.is_owner == True).order_by(User.id.desc()))
+        owner = res.scalars().first()
+        if owner:
+            return owner
+        any_user = (await db.execute(select(User).order_by(User.id.asc()))).scalars().first()
+        if any_user:
+            return any_user
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+@router.post("/chat")
+async def direct_chat(
+    data: ChatRequest,
+    current_user: Annotated[User, Depends(get_chat_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Direct chat endpoint for voice interactions and instant HUD queries.
+    Executes with Gemini, saves history, and returns immediate spoken response text.
+    """
+    message_text = data.message.strip()
+    if not message_text:
+        raise HTTPException(status_code=400, detail="Message cannot be empty.")
+
+    # Get or create conversation
+    convo: Conversation | None = None
+    if data.conversation_id:
+        res = await db.execute(
+            select(Conversation).where(
+                Conversation.id == data.conversation_id,
+                Conversation.user_id == current_user.id,
+            )
+        )
+        convo = res.scalar_one_or_none()
+
+    if not convo:
+        convo = Conversation(
+            user_id=current_user.id,
+            title=message_text[:50],
+            mode=settings.assistant_mode,
+            ai_provider="gemini",
+            model_name=settings.primary_model,
+        )
+        db.add(convo)
+        await db.flush()
+
+    # Save user message
+    user_msg = Message(
+        conversation_id=convo.id,
+        role="user",
+        content=message_text,
+    )
+    db.add(user_msg)
+    await db.flush()
+
+    # ── Fast Local Directive Execution (Instant Laptop Control <10ms) ──
+    from backend.app.tools.laptop_controller import laptop_controller
+
+    directive_res = laptop_controller.execute_directive(message_text)
+    if directive_res is not None:
+        reply_text = directive_res.get("message", "Directive executed successfully, Sir.")
+        asst_msg = Message(
+            conversation_id=convo.id,
+            role="assistant",
+            content=reply_text,
+            ai_provider="local_controller",
+            model_name="windows_executor",
+        )
+        db.add(asst_msg)
+        await db.flush()
+        return {
+            "reply": reply_text,
+            "conversation_id": convo.id,
+            "model": "local_controller",
+        }
+
+    # Auto-extract and inject long-term memories
+    from backend.app.ai.memory_manager import memory_manager
+    try:
+        await memory_manager.extract_and_store_memories(
+            user_id=current_user.id,
+            message=message_text,
+            conversation_id=convo.id,
+            db=db,
+        )
+    except Exception as e:
+        logger.debug("Memory extraction non-blocking error: %s", e)
+
+    system_prompt = _build_system_prompt(current_user.display_name, convo.mode)
+
+    try:
+        mems = await memory_manager.retrieve_relevant_memories(
+            user_id=current_user.id,
+            query=message_text,
+            db=db,
+            limit=4,
+        )
+        system_prompt += memory_manager.format_memories_for_prompt(mems)
+    except Exception as e:
+        logger.debug("Memory retrieval non-blocking error: %s", e)
+
+    # Retrieve last 10 turns for multi-turn conversational context
+    history_res = await db.execute(
+        select(Message)
+        .where(Message.conversation_id == convo.id)
+        .order_by(Message.id.desc())
+        .limit(10)
+    )
+    prior_msgs = list(reversed(history_res.scalars().all()))
+    history_payload = []
+    for m in prior_msgs[:-1]:  # exclude the user message just added
+        role = "user" if m.role == "user" else "model"
+        history_payload.append({"role": role, "text": m.content})
+
+    result = await gemini_provider.chat(
+        message=message_text,
+        system_instruction=system_prompt,
+        model=settings.primary_model,
+        history=history_payload,
+    )
+
+    reply_text = result.get("text")
+    if not reply_text:
+        reply_text = f"Systems operational, {current_user.display_name}. I heard your command: '{message_text}', but communication core encountered a brief pause."
+
+    # Save assistant message
+    asst_msg = Message(
+        conversation_id=convo.id,
+        role="assistant",
+        content=reply_text,
+        ai_provider="gemini",
+        model_name=result.get("model") or settings.primary_model,
+    )
+    db.add(asst_msg)
+    await db.flush()
+
+    return {
+        "reply": reply_text,
+        "conversation_id": convo.id,
+        "model": result.get("model") or settings.primary_model,
+    }
 
 
 def _build_system_prompt(owner_name: str, mode: str) -> str:

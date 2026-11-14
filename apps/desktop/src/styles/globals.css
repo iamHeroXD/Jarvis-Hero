@@ -14,12 +14,22 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    background-color: #000000 !important;
   }
 
   body {
-    @apply bg-surface-1 text-text-primary font-sans;
-    overflow: hidden; /* Tauri window manages scrolling */
-    user-select: none; /* Prevent accidental text selection on UI chrome */
+    background-color: #000000 !important;
+    color: #e0f7fa;
+    font-family: inherit;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  #root {
+    background-color: #000000 !important;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
   }
 
   /* Allow text selection in content areas */

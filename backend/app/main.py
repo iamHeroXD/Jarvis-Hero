@@ -75,9 +75,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — only allow the Tauri desktop frontend (localhost)
+# CORS — allow all local origins and Tauri schemes
 app.add_middleware(
     CORSMiddleware,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_origins=[
         "http://localhost",
         "http://127.0.0.1",

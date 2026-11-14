@@ -34,7 +34,7 @@ async def setup_test_db():
 
 @pytest.fixture
 def auth_headers():
-    token = create_access_token(data={"sub": "1", "username": "test_owner", "is_owner": True})
+    token = create_access_token(data={"sub": "2", "username": "rohan", "is_owner": True})
     return {"Authorization": f"Bearer {token}"}
 
 

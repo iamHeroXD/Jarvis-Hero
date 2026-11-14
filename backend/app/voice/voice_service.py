@@ -2,10 +2,13 @@
 JARVIS Voice & Speech Engine
 Controls British masculine speech synthesis (TTS), speech-to-text (STT),
 voice activity detection (VAD), barge-in interruption, and audio playback state.
+Supports Gemini TTS with seamless local Windows SAPI fallback.
 """
 from __future__ import annotations
 
 import asyncio
+import os
+import tempfile
 from typing import Any
 from backend.app.ai.gemini_provider import gemini_provider
 from backend.app.core.config import settings
@@ -43,14 +46,56 @@ class VoiceService:
         logger.info("Speech playback interrupted by owner.")
 
     async def synthesize_british_speech(self, text: str) -> bytes | None:
-        """Synthesizes text to speech using Gemini TTS with British masculine Voice Design."""
+        """Synthesizes text to speech using Gemini TTS or high-fidelity local Windows SAPI."""
         self.is_speaking = True
+        clean_text = text.replace("*", "").replace("#", "").replace("`", "").strip()
         try:
-            audio_bytes = await gemini_provider.synthesise_speech(
-                text=text,
-                voice_name=self.voice_name,
-            )
-            return audio_bytes
+            # 1. Try Gemini TTS if configured
+            try:
+                audio_bytes = await gemini_provider.synthesise_speech(
+                    text=clean_text,
+                    voice_name=self.voice_name,
+                )
+                if audio_bytes:
+                    return audio_bytes
+            except Exception as e:
+                logger.debug("Gemini TTS unavailable, falling back to local SAPI: %s", e)
+
+            # 2. Local Windows SAPI SpVoice fallback (ultra-fast, zero latency)
+            def generate_sapi_wav() -> bytes | None:
+                try:
+                    import win32com.client
+                    speaker = win32com.client.Dispatch("SAPI.SpVoice")
+                    # Try to find British voice if installed
+                    for v in speaker.GetVoices():
+                        desc = v.GetDescription()
+                        if "United Kingdom" in desc or "George" in desc or "Ryan" in desc or "Hazel" in desc:
+                            speaker.Voice = v
+                            break
+
+                    speaker.Rate = 0  # Normal conversational rate
+                    speaker.Volume = int(settings.voice_volume * 100)
+
+                    tmp_file = os.path.join(tempfile.gettempdir(), f"jarvis_speech_{os.getpid()}_{id(clean_text)}.wav")
+                    stream = win32com.client.Dispatch("SAPI.SpFileStream")
+                    stream.Open(tmp_file, 3, False)  # 3 = SSFMCreateForWrite
+                    speaker.AudioOutputStream = stream
+                    speaker.Speak(clean_text)
+                    stream.Close()
+
+                    if os.path.exists(tmp_file):
+                        with open(tmp_file, "rb") as f:
+                            data = f.read()
+                        try:
+                            os.remove(tmp_file)
+                        except Exception:
+                            pass
+                        return data
+                except Exception as ex:
+                    logger.error("Local SAPI synthesis failed: %s", ex)
+                    return None
+
+            return await asyncio.to_thread(generate_sapi_wav)
         finally:
             self.is_speaking = False
 

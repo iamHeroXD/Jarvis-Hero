@@ -38,7 +38,7 @@ async def dispatch_task(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
     """Coordinates specialist agents under central JARVIS orchestrator."""
-    result = jarvis_orchestrator.dispatch(
+    result = await jarvis_orchestrator.dispatch_async(
         intent=data.intent,
         parameters=data.parameters,
         task_id=data.task_id,

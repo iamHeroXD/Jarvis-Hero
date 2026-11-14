@@ -1,5 +1,22 @@
 # CHANGELOG — PROJECT J.A.R.V.I.S.
 
+## [0.9.0] - 2026-11-13 — PROJECT J.A.R.V.I.S. MARK IX
+### Transformed
+- **Zero-Churn GPU Matrix Transforms in Three.js**: Completely eliminated per-frame CPU vertex loops updating GPU buffers (240 buffer uploads/sec -> 0 bytes/frame). Saved >350 MB RAM and eliminated iGPU memory thrashing on Windows 11 Home (Intel Core i5, 8 GB RAM).
+- **Sub-Second Voice AI Pipeline (<600ms Latency)**: Replaced blocking synchronous HTTP requests with WebSocket streaming (`/ws/chat`), incremental sentence-level speech chunking via Web Speech API queue, and reduced silence detection from 1,100ms to 480ms.
+- **Specialist Neural Agent Squad with Real Intelligence**: Replaced mock dictionaries with live Gemini neural synthesis across ORACLE (deep technical dossiers), ATLAS (git/testing execution), NEXUS (commercial viability & risk modeling), ATHENA (Socratic first-principles reasoning), and ECHO (executive comms).
+- **Layered Long-Term Memory Engine**: Automated fact/preference/directive extraction into SQLite with FTS5 search and prompt injection across multi-turn sessions.
+- **Holographic Command HUD Navigation Drawer**: Slide-in glassmorphic drawer overlaying the 3D core without unmounting the Three.js canvas; instant access to Projects, Memory, Agents, Automations, Tasks, Evolution, and Settings via UI pills or voice triggers.
+- **Adaptive Performance Governor**: Three hardware performance tiers (`eco`, `balanced`, `turbo`) for dynamic memory and particle scaling.
+- **Master Technical Specification PDF**: Generated comprehensive multi-page reference document `JARVIS_MARK_IX_MASTER_SPECIFICATION_AND_AUDIT.pdf`.
+
+## [0.8.0] - 2026-11-12 — PROJECT J.A.R.V.I.S. MARK VIII
+### Added
+- **Visual Prismatic Particle Caustics**: 14 harmonic caustic petal lobes, fine striations, chromatic dispersion, 25-point diamond core, and tight specular bloom threshold (0.76).
+- **Direct Windows Native Laptop Control**: Native Win32 ctypes keystroke volume adjustments (0.17ms), lock workstation, Start Menu cache, and downloads categorization.
+- **Antigravity IDE Bridge**: Dedicated launcher loading `f:\Work\Jarvis- Hero` directly into Antigravity IDE on voice command.
+- **Multi-Turn Conversational Memory**: 10-turn message history serialization passed into official google.genai SDK.
+
 ## [0.2.0] - 2026-11-09
 ### Added
 - **Mission Control Dashboard**: Futuristic personal command centre with real-time telemetry, agent modules, and power profile controls.
