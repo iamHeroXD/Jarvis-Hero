@@ -1,0 +1,59 @@
+{
+  "workflow_id": "wf_1794632019_16",
+  "title": "Instagram Message to Alex",
+  "user_intent": "Draft message to Alex on Instagram",
+  "state": "planning",
+  "current_step_index": 0,
+  "steps": [
+    {
+      "id": 1,
+      "name": "Draft Message Content",
+      "description": "Prepare communication draft for Alex on Instagram",
+      "action_type": "content_gen",
+      "parameters": {
+        "platform": "Instagram",
+        "recipient": "Alex",
+        "text": "See you at 6 PM"
+      },
+      "state": "pending",
+      "requires_approval": false,
+      "result": null,
+      "error": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": 2,
+      "name": "Owner Confirmation & Approval Gate",
+      "description": "Display draft preview and wait for explicit confirmation from Rohan",
+      "action_type": "social_draft",
+      "parameters": {
+        "platform": "Instagram",
+        "recipient": "Alex",
+        "text": "See you at 6 PM"
+      },
+      "state": "pending",
+      "requires_approval": true,
+      "result": null,
+      "error": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": 3,
+      "name": "Complete Communication Workflow",
+      "description": "Confirm message dispatch after owner approval",
+      "action_type": "verify",
+      "parameters": {},
+      "state": "pending",
+      "requires_approval": false,
+      "result": null,
+      "error": null,
+      "started_at": null,
+      "completed_at": null
+    }
+  ],
+  "created_at": "2026-11-14T10:23:39.229484",
+  "updated_at": "2026-11-14T10:23:39.229560",
+  "context": {}
+}

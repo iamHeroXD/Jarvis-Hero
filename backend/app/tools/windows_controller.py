@@ -397,5 +397,52 @@ class WindowsComputerController:
         except Exception as err:
             return {"success": False, "message": f"Minimize all failed: {err}"}
 
+    def optimize_system_memory(self) -> dict[str, Any]:
+        """
+        Actively trims process working sets and frees dormant RAM via Win32 API.
+        Trims current process and accessible user processes, then collects garbage.
+        Returns detailed telemetry of megabytes reclaimed.
+        """
+        import gc
+        gc.collect()
+
+        vm_before = psutil.virtual_memory()
+        before_avail_mb = vm_before.available / (1024 * 1024)
+
+        trimmed_count = 0
+        PROCESS_SET_QUOTA = 0x0100
+        PROCESS_QUERY_INFORMATION = 0x0400
+
+        for p in psutil.process_iter(["pid", "name"]):
+            try:
+                pid = p.info["pid"]
+                if pid <= 4:
+                    continue
+                h_proc = self._kernel32.OpenProcess(PROCESS_SET_QUOTA | PROCESS_QUERY_INFORMATION, False, pid)
+                if h_proc:
+                    try:
+                        if ctypes.windll.psapi.EmptyWorkingSet(h_proc):
+                            trimmed_count += 1
+                    finally:
+                        self._kernel32.CloseHandle(h_proc)
+            except Exception:
+                continue
+
+        gc.collect()
+        vm_after = psutil.virtual_memory()
+        after_avail_mb = vm_after.available / (1024 * 1024)
+        freed_mb = max(0.0, after_avail_mb - before_avail_mb)
+
+        logger.info("Memory optimization complete: %d processes trimmed, %.1f MB reclaimed", trimmed_count, freed_mb)
+        return {
+            "success": True,
+            "processes_trimmed": trimmed_count,
+            "freed_mb": round(freed_mb, 1),
+            "before_available_mb": round(before_avail_mb, 1),
+            "after_available_mb": round(after_avail_mb, 1),
+            "ram_percent": vm_after.percent,
+            "message": f"Memory optimization complete, Sir. Reclaimed {round(freed_mb)} MB of system RAM. Available memory is now {round(after_avail_mb / 1024, 2)} GB (Usage: {vm_after.percent}%).",
+        }
+
 
 windows_controller = WindowsComputerController()

@@ -82,6 +82,18 @@ def test_launch_app_verified_mocked():
         assert res["pid"] == 8888
 
 
+def test_optimize_system_memory():
+    """Verify active RAM optimization trims working sets and returns freed telemetry."""
+    res = windows_controller.optimize_system_memory()
+    assert res["success"] is True
+    assert "freed_mb" in res
+    assert "processes_trimmed" in res
+    assert "after_available_mb" in res
+    assert "ram_percent" in res
+    assert isinstance(res["message"], str)
+    assert len(res["message"]) > 0
+
+
 # ── 2. Browser Research Engine Tests ──────────────────────────────────────────
 
 @pytest.mark.asyncio

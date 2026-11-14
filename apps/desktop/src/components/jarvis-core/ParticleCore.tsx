@@ -199,25 +199,26 @@ export default function ParticleCore({
 
     const renderer = new THREE.WebGLRenderer({
       alpha: false,
-      antialias: performanceMode !== 'eco',
+      antialias: performanceMode === 'turbo',
       powerPreference: 'high-performance',
     });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, performanceMode === 'eco' ? 1.0 : 1.75));
+    // Dynamic memory-budget pixel ratio (conserves shared RAM on Intel integrated GPU)
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, performanceMode === 'eco' ? 0.85 : performanceMode === 'balanced' ? 1.25 : 1.5));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
 
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
-    // ── 2. Cinematic Balanced Postprocessing Bloom (Strictly matches caustic starburst reference) ──
+    // ── 2. Cinematic Balanced Postprocessing Bloom (Downsampled to 1/2 for 75% less FBO RAM) ──
     const composer = new EffectComposer(renderer);
     const renderPass = new RenderPass(scene, camera);
     composer.addPass(renderPass);
 
-    const bloomStrength = performanceMode === 'eco' ? 0.25 : performanceMode === 'turbo' ? 0.65 : 0.52;
+    const bloomStrength = performanceMode === 'eco' ? 0.22 : performanceMode === 'turbo' ? 0.65 : 0.48;
     const bloomPass = new UnrealBloomPass(
-      new THREE.Vector2(width, height),
+      new THREE.Vector2(Math.floor(width / 2), Math.floor(height / 2)),
       bloomStrength, // Controlled bloom strength (no giant white sun washout)
       0.22, // Tight specular halo radius
       0.76  // High threshold so only intense specular sparks bloom softly
@@ -513,8 +514,15 @@ export default function ParticleCore({
     let animId = 0;
     const startTime = performance.now();
 
+    let isWindowVisible = !document.hidden;
+    const onVisibilityChange = () => {
+      isWindowVisible = !document.hidden;
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     const animate = () => {
       animId = requestAnimationFrame(animate);
+      if (!isWindowVisible) return; // 0% CPU & 0 GPU memory bandwidth when minimized or backgrounded
       const elapsed = clock.getElapsedTime();
       const bootSeconds = (performance.now() - startTime) / 1000;
 
@@ -645,6 +653,7 @@ export default function ParticleCore({
 
     return () => {
       cancelAnimationFrame(animId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('mousedown', onMouseDown);
       window.removeEventListener('mousemove', onMouseMove);

@@ -648,6 +648,15 @@ class LaptopController:
         if any(w in text for w in ["empty recycle bin", "clean recycle bin", "clear recycle bin", "empty trash"]):
             return self.empty_recycle_bin()
 
+        # ── 7b. Active System RAM Optimization (<1.5s) ──────────────────────────
+        if any(w in text for w in [
+            "clean ram", "optimize ram", "free ram", "clear ram", "clean memory",
+            "optimize memory", "free memory", "reduce ram", "lower ram", "boost ram",
+            "boost memory", "ram usage is high", "free up memory", "free up ram"
+        ]):
+            from backend.app.tools.windows_controller import windows_controller
+            return windows_controller.optimize_system_memory()
+
         # ── 8. Organize Downloads (<1.5s) ───────────────────────────────────────
         if any(w in text for w in ["organize downloads", "clean downloads", "organise downloads", "sort downloads"]):
             return self.organize_downloads()
