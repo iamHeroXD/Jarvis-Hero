@@ -135,3 +135,19 @@ async def test_system_and_governor(auth_headers):
         assert set_gov.status_code == 200
         assert set_gov.json()["state"]["profile"] == "eco"
         assert set_gov.json()["state"]["target_particle_count"] == 600
+
+
+@pytest.mark.asyncio
+async def test_startup_briefing_endpoint(auth_headers):
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        res = await ac.get("/api/v1/projects/startup-briefing", headers=auth_headers)
+        assert res.status_code == 200
+        data = res.json()
+        assert "greeting" in data
+        assert "spoken_briefing" in data
+        assert "system_status" in data
+        assert "recommended_action" in data
+        assert "active_projects" in data
+        assert isinstance(data["active_projects"], list)
+

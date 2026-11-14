@@ -10,8 +10,10 @@ Performs real web research, DOM parsing, citation extraction, and document synth
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import os
 import re
+import socket
 import urllib.parse
 from datetime import datetime
 from pathlib import Path
@@ -103,12 +105,56 @@ class BrowserResearchEngine:
 
         return results[:max_results]
 
+    # ── SSRF Security Guard ───────────────────────────────────────────────────
+
+    def is_ssrf_safe_url(self, url: str) -> tuple[bool, str]:
+        """
+        Validates URL against SSRF attacks:
+        - Scheme must be http or https
+        - Hostname cannot resolve to loopback, private RFC1918, link-local, or cloud metadata IPs
+        """
+        try:
+            parsed = urllib.parse.urlparse(url)
+            if parsed.scheme not in ("http", "https"):
+                return False, f"Unsupported scheme: {parsed.scheme}"
+
+            hostname = parsed.hostname
+            if not hostname:
+                return False, "Missing hostname in target URL"
+
+            if hostname.lower() in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+                return False, f"Access to localhost blocked by SSRF policy"
+
+            # Resolve IP
+            addr_info = socket.getaddrinfo(hostname, None)
+            for item in addr_info:
+                ip_str = item[4][0]
+                ip_obj = ipaddress.ip_address(ip_str)
+                if (
+                    ip_obj.is_loopback
+                    or ip_obj.is_private
+                    or ip_obj.is_link_local
+                    or ip_obj.is_multicast
+                    or ip_obj.is_reserved
+                ):
+                    return False, f"Access to private/internal network address {ip_str} blocked by SSRF policy"
+
+            return True, "Safe"
+        except Exception as err:
+            return False, f"DNS resolution or validation error: {err}"
+
     # ── 2. DOM Content Extraction ─────────────────────────────────────────────
 
     async def fetch_page_content(self, url: str, max_chars: int = 4000) -> dict[str, Any]:
         """
         Fetches web page, extracts clean article DOM paragraphs, strips ads/scripts.
+        Enforces SSRF validation before network dispatch.
         """
+        is_safe, reason = self.is_ssrf_safe_url(url)
+        if not is_safe:
+            logger.warning("SSRF blocked URL %s: %s", url, reason)
+            return {"url": url, "success": False, "status": 403, "text": f"Blocked by SSRF security policy: {reason}"}
+
         try:
             async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
                 resp = await client.get(url, headers=self.headers)
@@ -289,7 +335,7 @@ class BrowserResearchEngine:
         # Header Title
         topic = research_data.get("topic", "Technical Research Dossier")
         story.append(Paragraph(f"RESEARCH DOSSIER: {topic.upper()}", title_style))
-        story.append(Paragraph(f"PROJECT J.A.R.V.I.S. MARK X // RESEARCH & CITATION DIRECTIVE", subtitle_style))
+        story.append(Paragraph(f"PROJECT J.A.R.V.I.S. MARK XI // RESEARCH & CITATION DIRECTIVE", subtitle_style))
         story.append(HRFlowable(width="100%", thickness=1.5, color=c_cyan, spaceBefore=0, spaceAfter=10))
 
         # Meta Details

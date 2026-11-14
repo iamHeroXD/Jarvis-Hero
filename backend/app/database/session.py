@@ -37,6 +37,9 @@ _session_factory = async_sessionmaker(
     autoflush=False,
 )
 
+# Canonical sessionmaker alias
+AsyncSessionLocal = _session_factory
+
 
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
 

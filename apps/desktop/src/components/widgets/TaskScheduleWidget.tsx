@@ -19,12 +19,24 @@ export default function TaskScheduleWidget({
   onClose,
   targetDeadline = '08:00 PM',
 }: TaskScheduleWidgetProps) {
-  const [tasks, setTasks] = useState<TaskScheduleItem[]>([
-    { id: '1', title: 'Complete Physics module questions', timeSlot: '04:00 PM - 05:15 PM', completed: false, priority: 'high' },
-    { id: '2', title: 'Review Chemistry equations & notes', timeSlot: '05:30 PM - 06:45 PM', completed: false, priority: 'medium' },
-    { id: '3', title: 'Deploy website & run validation tests', timeSlot: '07:00 PM - 07:45 PM', completed: false, priority: 'high' },
-  ]);
+  const [tasks, setTasks] = useState<TaskScheduleItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('jarvis_schedule_tasks');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [
+      { id: '1', title: 'Complete Physics module questions', timeSlot: '04:00 PM - 05:15 PM', completed: false, priority: 'high' },
+      { id: '2', title: 'Review Chemistry equations & notes', timeSlot: '05:30 PM - 06:45 PM', completed: false, priority: 'medium' },
+      { id: '3', title: 'Deploy website & run validation tests', timeSlot: '07:00 PM - 07:45 PM', completed: false, priority: 'high' },
+    ];
+  });
   const [newTitle, setNewTitle] = useState<string>('');
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('jarvis_schedule_tasks', JSON.stringify(tasks));
+    } catch {}
+  }, [tasks]);
 
   const toggleTask = (id: string) => {
     setTasks((prev) =>

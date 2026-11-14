@@ -543,6 +543,33 @@ export default function JarvisCommandCore() {
       return;
     }
 
+    // ── Next-Day Startup Operational Briefing ──────────────────────────────────
+    if (/\b(?:briefing|startup briefing|morning briefing|status briefing|daily briefing)\b/i.test(cleanLower)) {
+      setCoreState('thinking');
+      const token = getToken();
+      fetch(`${API_BASE}/api/v1/projects/startup-briefing`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && data.spoken_briefing) {
+            setCoreState('speaking');
+            setLastJarvisReply(data.spoken_briefing);
+            setLastExecutionLatency('<25ms [STARTUP BRIEFING]');
+            speakBritishReply(data.spoken_briefing);
+          }
+        })
+        .catch(() => {
+          const fallback = 'All Mark XI systems are nominal, Sir. Ready for today\'s engineering directives.';
+          setLastJarvisReply(fallback);
+          speakBritishReply(fallback);
+        })
+        .finally(() => {
+          setIsProcessing(false);
+        });
+      return;
+    }
+
     // ── Compound Research & PDF Directive ─────────────────────────────────────
     if (/\bresearch\b/i.test(cleanLower) && /\b(?:pdf|document|report)\b/i.test(cleanLower)) {
       setCoreState('researching');
@@ -1018,7 +1045,7 @@ export default function JarvisCommandCore() {
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold tracking-widest text-white">PROJECT J.A.R.V.I.S.</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 border border-cyan-400/50 text-cyan-300 font-semibold shadow-[0_0_10px_rgba(6,182,212,0.3)]">
-                MARK X // MASTER CONTROLLER
+                MARK XI // AUTONOMOUS OS
               </span>
             </div>
             <div className="text-[10px] text-cyan-500/80 tracking-wider">
@@ -1080,6 +1107,13 @@ export default function JarvisCommandCore() {
             <span>SYS: <strong className={ramUsage > 85 ? "text-amber-400" : "text-cyan-200"}>{ramUsage}%</strong></span>
             <span>JARVIS: <strong className="text-emerald-300 font-bold">{jarvisMemMb} MB</strong></span>
             <span>BAT: <strong className="text-cyan-200">{batteryLevel}%</strong></span>
+            <button
+              onClick={() => executeCommand('startup briefing')}
+              className="px-2 py-0.5 rounded text-[10px] font-bold border transition-all flex items-center gap-1 bg-amber-500/20 text-amber-200 border-amber-500/40 hover:bg-amber-500/30 hover:border-amber-400 hover:text-white"
+              title="Generate Daily Operational Briefing"
+            >
+              <span>🌅 BRIEFING</span>
+            </button>
             <button
               onClick={triggerRamOptimization}
               disabled={isCleaningRam}
@@ -1362,6 +1396,7 @@ export default function JarvisCommandCore() {
         {/* 3. Master Laptop Control Quick Directives */}
         <div className="flex items-center gap-2 overflow-x-auto max-w-full py-0.5">
           {[
+            { label: '🌅 Daily Briefing', cmd: 'startup briefing' },
             { label: '⚡ Antigravity (Jarvis)', cmd: 'open antigravity and go to jarvis project' },
             { label: '🧹 Clean RAM', cmd: 'clean ram' },
             { label: '🌦️ Weather', cmd: 'show weather' },

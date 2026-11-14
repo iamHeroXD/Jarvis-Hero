@@ -216,35 +216,55 @@ class GeminiProvider:
 
         succeeded = False
         last_err: Exception | None = None
+        loop = asyncio.get_running_loop()
 
         for candidate_model in models_to_try:
-            try:
-                def get_stream():
-                    return client.models.generate_content_stream(
-                        model=candidate_model,
+            queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue(maxsize=100)
+
+            def stream_worker(cand_model: str) -> None:
+                try:
+                    stream = client.models.generate_content_stream(
+                        model=cand_model,
                         contents=contents_list,
                         config=config,
                     )
+                    for chunk in stream:
+                        if chunk and chunk.text:
+                            loop.call_soon_threadsafe(queue.put_nowait, {"type": "delta", "text": chunk.text})
+                    loop.call_soon_threadsafe(queue.put_nowait, {
+                        "type": "completed",
+                        "interaction_id": None,
+                        "model": cand_model,
+                        "tokens": None,
+                    })
+                except Exception as stream_err:
+                    loop.call_soon_threadsafe(queue.put_nowait, {
+                        "type": "error",
+                        "message": str(stream_err),
+                        "model": cand_model,
+                    })
+                finally:
+                    loop.call_soon_threadsafe(queue.put_nowait, None)
 
-                stream = await asyncio.to_thread(get_stream)
+            # Spawn worker thread to pull SSE network stream without blocking main asyncio loop
+            asyncio.create_task(asyncio.to_thread(stream_worker, candidate_model))
 
-                for chunk in stream:
-                    if chunk and chunk.text:
-                        yield {"type": "delta", "text": chunk.text}
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                if item.get("type") == "error":
+                    last_err = Exception(item.get("message", "Stream failure"))
+                    logger.warning("Stream with %s failed: %s. Trying next...", candidate_model, last_err)
+                    break
+                yield item
+                if item.get("type") == "completed":
+                    succeeded = True
+                    self._available = True
+                    break
 
-                succeeded = True
-                self._available = True
-                yield {
-                    "type": "completed",
-                    "interaction_id": None,
-                    "model": candidate_model,
-                    "tokens": None,
-                }
+            if succeeded:
                 break
-            except Exception as err:
-                last_err = err
-                logger.warning("Stream with %s failed: %s. Trying next...", candidate_model, err)
-                continue
 
         if not succeeded:
             error_msg = str(last_err) if last_err else "Stream generation failed."

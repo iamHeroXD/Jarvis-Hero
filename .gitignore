@@ -29,6 +29,8 @@ data/db/*.db
 data/db/*.db-wal
 data/db/*.db-shm
 data/logs/*.log
+data/workflows/*.json
+workspace/self_improvement/pending/directive_*.md
 
 # IDE
 .vscode/

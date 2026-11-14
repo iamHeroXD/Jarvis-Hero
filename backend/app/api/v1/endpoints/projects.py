@@ -188,6 +188,112 @@ async def create_project(
     return ProjectResponse.from_orm_model(project)
 
 
+# ── Mark XI Next-Day Startup Briefing ─────────────────────────────────────────
+
+@router.get("/startup-briefing")
+async def get_startup_briefing(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Generates a personalized next-day / startup operational briefing for Rohan:
+    - Active projects and pending goals
+    - Recent architectural decisions & blockers
+    - High-priority open tasks
+    - Real-time hardware telemetry and memory status
+    - Recommended immediate action
+    """
+    from backend.app.tools.unified_computer_controller import unified_controller
+
+    # 1. Fetch active projects
+    proj_stmt = (
+        select(Project)
+        .where(Project.user_id == current_user.id, Project.status == "active")
+        .order_by(Project.updated_at.desc())
+    )
+    active_projects = (await db.execute(proj_stmt)).scalars().all()
+
+    # 2. Fetch recent decisions / blockers across projects
+    notes_stmt = (
+        select(ProjectNote)
+        .join(Project, ProjectNote.project_id == Project.id)
+        .where(Project.user_id == current_user.id)
+        .order_by(ProjectNote.created_at.desc())
+        .limit(5)
+    )
+    recent_notes = (await db.execute(notes_stmt)).scalars().all()
+
+    # 3. Fetch pending tasks
+    task_stmt = (
+        select(Task)
+        .where(Task.user_id == current_user.id, Task.status.in_(["created", "ready", "running", "waiting_for_approval", "needs_attention"]))
+        .order_by(Task.priority.desc(), Task.created_at.desc())
+        .limit(6)
+    )
+    pending_tasks = (await db.execute(task_stmt)).scalars().all()
+
+    # 4. System telemetry
+    sys_diag = unified_controller.get_system_diagnostics()
+    bat_info = unified_controller.get_battery_status()
+
+    hour = datetime.now().hour
+    time_greeting = "Good morning" if hour < 12 else "Good afternoon" if hour < 17 else "Good evening"
+    owner_name = current_user.display_name or "Sir"
+
+    proj_summaries = []
+    for p in active_projects:
+        try:
+            goals = json.loads(p.goals) if isinstance(p.goals, str) else (p.goals or [])
+        except Exception:
+            goals = []
+        proj_summaries.append({
+            "id": p.id,
+            "name": p.name,
+            "priority": p.priority,
+            "goals_count": len(goals),
+            "local_path": p.local_path,
+        })
+
+    decision_summaries = [
+        {"note_type": n.note_type, "content": n.content, "created_at": n.created_at.isoformat()}
+        for n in recent_notes
+    ]
+
+    task_summaries = [
+        {"id": t.id, "uuid": t.task_uuid, "title": t.title, "status": t.status, "priority": t.priority}
+        for t in pending_tasks
+    ]
+
+    rec_action = (
+        f"Review active development on {active_projects[0].name}."
+        if active_projects
+        else "Formulate today's primary engineering objective."
+    )
+
+    spoken = (
+        f"{time_greeting}, {owner_name}. All Mark XI systems are nominal. "
+        f"You have {len(active_projects)} active projects and {len(pending_tasks)} pending operations. "
+        f"RAM is at {sys_diag.get('ram', 70):.0f}%, battery is at {bat_info.get('percent', 90)}%. "
+        f"I am standing by to assist with computer control, deep research, and development in Antigravity."
+    )
+
+    return {
+        "greeting": f"{time_greeting}, {owner_name}",
+        "date": datetime.now().strftime("%A, %B %d, %Y"),
+        "spoken_briefing": spoken,
+        "recommended_action": rec_action,
+        "system_status": {
+            "ram_percent": sys_diag.get("ram"),
+            "cpu_percent": sys_diag.get("cpu"),
+            "battery_percent": bat_info.get("percent"),
+            "battery_charging": bat_info.get("charging"),
+        },
+        "active_projects": proj_summaries,
+        "recent_notes": decision_summaries,
+        "pending_tasks": task_summaries,
+    }
+
+
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(
     project_id: int,
@@ -328,3 +434,4 @@ async def add_project_note(
     await db.commit()
     await db.refresh(note)
     return note
+
