@@ -1,0 +1,60 @@
+{
+  "workflow_id": "wf_1794633108_20",
+  "title": "Test Flow",
+  "user_intent": "Intent for testing",
+  "state": "completed",
+  "current_step_index": 3,
+  "steps": [
+    {
+      "id": 1,
+      "name": "Step 1",
+      "description": "Description 1",
+      "action_type": "verify",
+      "parameters": {},
+      "state": "completed",
+      "requires_approval": false,
+      "result": {
+        "verified": true,
+        "summary": "All preceding workflow steps verified and delivered successfully."
+      },
+      "error": null,
+      "started_at": "2026-11-14T10:41:48.364634",
+      "completed_at": "2026-11-14T10:41:48.422951"
+    },
+    {
+      "id": 2,
+      "name": "Approval Step",
+      "description": "Wait for owner",
+      "action_type": "social_draft",
+      "parameters": {},
+      "state": "completed",
+      "requires_approval": true,
+      "result": {
+        "approved_by_owner": true,
+        "approved_at": "2026-11-14T10:41:48.426898"
+      },
+      "error": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": 3,
+      "name": "Final Step",
+      "description": "Description 3",
+      "action_type": "verify",
+      "parameters": {},
+      "state": "completed",
+      "requires_approval": false,
+      "result": {
+        "verified": true,
+        "summary": "All preceding workflow steps verified and delivered successfully."
+      },
+      "error": null,
+      "started_at": "2026-11-14T10:41:48.428665",
+      "completed_at": "2026-11-14T10:41:48.429493"
+    }
+  ],
+  "created_at": "2026-11-14T10:41:48.344362",
+  "updated_at": "2026-11-14T10:41:48.430261",
+  "context": {}
+}

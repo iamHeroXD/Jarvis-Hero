@@ -17,9 +17,19 @@ try {
 } catch {}
 
 if (-not $BackendUp) {
-    Write-Host "[1/2] Starting JARVIS backend daemon on http://127.0.0.1:8765..." -ForegroundColor Green
+    Write-Host "[1/2] Starting JARVIS neural backend on http://127.0.0.1:8765..." -ForegroundColor Green
     Start-Process python -ArgumentList "-m uvicorn backend.app.main:app --host 127.0.0.1 --port 8765 --log-level warning" -WindowStyle Hidden
-    Start-Sleep -Seconds 1
+    
+    # Poll until port is actively responding (up to 15 seconds)
+    $attempts = 0
+    while (-not $BackendUp -and $attempts -lt 25) {
+        Start-Sleep -Milliseconds 600
+        $attempts++
+        try {
+            $res = Invoke-WebRequest -Uri "http://127.0.0.1:8765/health" -TimeoutSec 1 -UseBasicParsing -ErrorAction SilentlyContinue
+            if ($res.StatusCode -eq 200) { $BackendUp = $true }
+        } catch {}
+    }
 }
 
 Write-Host "[2/2] Launching JARVIS Iron Man Command Centre..." -ForegroundColor Cyan

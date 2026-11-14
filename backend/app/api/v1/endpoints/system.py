@@ -1,10 +1,7 @@
 """System monitoring & optimization endpoints."""
 from __future__ import annotations
 
-from typing import Annotated, Optional
-from fastapi import APIRouter, Depends, Header
-from backend.app.api.v1.endpoints.auth import get_current_user_optional
-from backend.app.models.database_models import User
+from fastapi import APIRouter
 from backend.app.monitoring.system_monitor import system_monitor
 from backend.app.tools.windows_controller import windows_controller
 
