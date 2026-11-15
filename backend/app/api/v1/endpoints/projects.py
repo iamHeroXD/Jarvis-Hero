@@ -270,23 +270,39 @@ async def get_startup_briefing(
         else "Formulate today's primary engineering objective."
     )
 
-    spoken = (
-        f"{time_greeting}, {owner_name}. All Mark XI systems are nominal. "
-        f"You have {len(active_projects)} active projects and {len(pending_tasks)} pending operations. "
-        f"RAM is at {sys_diag.get('ram', 70):.0f}%, battery is at {bat_info.get('percent', 90)}%. "
-        f"I am standing by to assist with computer control, deep research, and development in Antigravity."
-    )
+    from backend.app.monitoring.sentinel_guardian import sentinel_guardian
+    sentinel_health = sentinel_guardian.check_system_health()
+    proactive_warning = sentinel_health.get("proactive_speech")
+
+    if proactive_warning:
+        spoken = (
+            f"{time_greeting}, {owner_name}. {proactive_warning} "
+            f"You have {len(active_projects)} active projects and {len(pending_tasks)} pending operations. "
+            f"RAM is at {sys_diag.get('ram', 70):.0f}%. Say 'clean c drive' to purge temporary storage."
+        )
+    else:
+        spoken = (
+            f"{time_greeting}, {owner_name}. All Mark XI systems are nominal. "
+            f"You have {len(active_projects)} active projects and {len(pending_tasks)} pending operations. "
+            f"RAM is at {sys_diag.get('ram', 70):.0f}%, battery is at {bat_info.get('percent', 90)}%. "
+            f"I am standing by to assist with computer control, deep research, and development in Antigravity."
+        )
 
     return {
         "greeting": f"{time_greeting}, {owner_name}",
         "date": datetime.now().strftime("%A, %B %d, %Y"),
         "spoken_briefing": spoken,
         "recommended_action": rec_action,
+        "proactive_warning": proactive_warning,
+        "sentinel_alerts": sentinel_health.get("alerts", []),
         "system_status": {
             "ram_percent": sys_diag.get("ram"),
             "cpu_percent": sys_diag.get("cpu"),
             "battery_percent": bat_info.get("percent"),
             "battery_charging": bat_info.get("charging"),
+            "disk_free_gb": sentinel_health["storage"]["free_gb"],
+            "disk_total_gb": sentinel_health["storage"]["total_gb"],
+            "disk_percent_used": sentinel_health["storage"]["percent_used"],
         },
         "active_projects": proj_summaries,
         "recent_notes": decision_summaries,

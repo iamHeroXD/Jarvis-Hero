@@ -383,7 +383,17 @@ async def websocket_chat(websocket: WebSocket, db: AsyncSession = Depends(get_db
                 elif chunk_type == "completed":
                     interaction_id = chunk.get("interaction_id")
                 elif chunk_type == "error":
-                    await websocket.send_json({"type": "error", "message": chunk["message"]})
+                    if not full_response:
+                        from backend.app.ai.offline_intelligence import offline_intelligence
+                        offline_reply = offline_intelligence.process_offline(user.display_name, dispatch_message)
+                        await websocket.send_json({
+                            "type": "tool_activity",
+                            "action": "Local Neural Core Active (Offline Mode)",
+                        })
+                        await websocket.send_json({"type": "delta", "text": offline_reply})
+                        full_response = offline_reply
+                    else:
+                        await websocket.send_json({"type": "error", "message": chunk["message"]})
                     break
 
             # Save assistant message
@@ -569,7 +579,8 @@ async def direct_chat(
 
     reply_text = result.get("text")
     if not reply_text:
-        reply_text = f"Systems operational, {current_user.display_name}. I heard your command: '{message_text}', but communication core encountered a brief pause."
+        from backend.app.ai.offline_intelligence import offline_intelligence
+        reply_text = offline_intelligence.process_offline(current_user.display_name, message_text)
 
     # Save assistant message
     asst_msg = Message(

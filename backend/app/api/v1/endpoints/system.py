@@ -24,3 +24,23 @@ async def optimize_memory():
     except Exception:
         pass
     return result
+
+
+@router.get("/sentinel/status")
+async def get_sentinel_status():
+    """
+    Returns proactive system health, anomaly alerts (storage, RAM, power, network),
+    and proactive vocal prompts for Rohan.
+    """
+    from backend.app.monitoring.sentinel_guardian import sentinel_guardian
+    return sentinel_guardian.check_system_health()
+
+
+@router.post("/clean-disk")
+async def clean_disk():
+    """
+    Safely purges user %TEMP%, Windows Temp, and empties Recycle Bin to recover storage.
+    Returns exact megabytes reclaimed and updated C: drive free space.
+    """
+    from backend.app.monitoring.sentinel_guardian import sentinel_guardian
+    return sentinel_guardian.purge_temp_storage()

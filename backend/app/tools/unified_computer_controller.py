@@ -1064,6 +1064,40 @@ class UnifiedComputerController:
             res["action"] = "Memory optimization"
             return res
 
+        # 5b. Active Sentinel Storage & C: Drive Purge (<1.5s)
+        if any(w in text for w in [
+            "clean c drive", "clean c disk", "clean disk", "clean storage", "purge temp",
+            "free storage", "free disk", "free up disk", "free c drive", "clean temporary files",
+            "empty temp", "storage cleanup", "disk cleanup"
+        ]):
+            from backend.app.monitoring.sentinel_guardian import sentinel_guardian
+            res = sentinel_guardian.purge_temp_storage()
+            return res
+
+        # 5c. Sentinel Health & Disk Anomaly Check (<5ms)
+        if any(w in text for w in [
+            "storage check", "disk space", "storage status", "check c drive", "c drive space",
+            "storage", "disk status", "how much storage", "sentinel check", "sentinel status",
+            "any anomalies", "check anomalies", "is anything unusual"
+        ]):
+            from backend.app.monitoring.sentinel_guardian import sentinel_guardian
+            health = sentinel_guardian.check_system_health()
+            c_info = health["storage"]
+            if health["proactive_speech"]:
+                msg = health["proactive_speech"]
+            else:
+                msg = (
+                    f"Sentinel reports all systems nominal, Sir. C: drive has {c_info['free_gb']} GB free "
+                    f"out of {c_info['total_gb']} GB ({c_info['percent_used']}% used). "
+                    f"RAM is at {health['memory']['percent_used']}%, and battery is standing at {health['battery']['percent']}%."
+                )
+            return {
+                "success": True,
+                "action": "Sentinel Health Assessment",
+                "health": health,
+                "message": msg,
+            }
+
         # 6. Folder Opening
         folder_match = re.search(r"\b(open|show|explore)\s+(downloads|download|documents|document|desktop|pictures|photos|images)\s*(folder)?\b", text)
         if folder_match:
