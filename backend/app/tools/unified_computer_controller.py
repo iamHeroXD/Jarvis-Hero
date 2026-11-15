@@ -61,6 +61,22 @@ VK_VOLUME_DOWN = 0xAE
 VK_VOLUME_UP = 0xAF
 
 
+# Mouse Event Flags
+MOUSEEVENTF_MOVE = 0x0001
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_RIGHTDOWN = 0x0008
+MOUSEEVENTF_RIGHTUP = 0x0010
+MOUSEEVENTF_MIDDLEDOWN = 0x0020
+MOUSEEVENTF_MIDDLEUP = 0x0040
+MOUSEEVENTF_WHEEL = 0x0800
+MOUSEEVENTF_ABSOLUTE = 0x8000
+
+
+class POINT(ctypes.Structure):
+    _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+
 class KEYBDINPUT(ctypes.Structure):
     _fields_ = [
         ("wVk", wintypes.WORD),
@@ -714,6 +730,88 @@ class UnifiedComputerController:
             logger.error("Unicode typing error: %s", err)
             return False
 
+    # ── Native Win32 Mouse & Keyboard Human Input Automation ───────────────────
+
+    def mouse_move(self, x: int, y: int) -> bool:
+        """Moves mouse cursor directly to (x, y) coordinates."""
+        try:
+            res = self._user32.SetCursorPos(int(x), int(y))
+            if not res:
+                self._user32.mouse_event(MOUSEEVENTF_MOVE, int(x), int(y), 0, 0)
+            return True
+        except Exception as err:
+            logger.error("mouse_move error: %s", err)
+            return False
+
+    def get_cursor_position(self) -> dict[str, int]:
+        """Returns current mouse cursor coordinates."""
+        try:
+            pt = POINT()
+            self._user32.GetCursorPos(ctypes.byref(pt))
+            return {"x": int(pt.x), "y": int(pt.y)}
+        except Exception:
+            return {"x": 0, "y": 0}
+
+    def mouse_click(self, button: str = "left", clicks: int = 1, x: int | None = None, y: int | None = None) -> bool:
+        """Executes native Win32 mouse click at current or target coordinates."""
+        try:
+            if x is not None and y is not None:
+                self.mouse_move(x, y)
+                time.sleep(0.02)
+
+            btn = str(button or "left").lower().strip()
+            if btn == "left":
+                down_flag, up_flag = MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP
+            elif btn == "right":
+                down_flag, up_flag = MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP
+            elif btn == "middle":
+                down_flag, up_flag = MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP
+            else:
+                down_flag, up_flag = MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP
+
+            for _ in range(clicks):
+                self._user32.mouse_event(down_flag, 0, 0, 0, 0)
+                time.sleep(0.02)
+                self._user32.mouse_event(up_flag, 0, 0, 0, 0)
+                if clicks > 1:
+                    time.sleep(0.05)
+            return True
+        except Exception as err:
+            logger.error("mouse_click error: %s", err)
+            return False
+
+    def mouse_scroll(self, amount: int = -240) -> bool:
+        """Scrolls mouse wheel. Negative for down, positive for up."""
+        try:
+            self._user32.mouse_event(MOUSEEVENTF_WHEEL, 0, 0, int(amount), 0)
+            return True
+        except Exception as err:
+            logger.error("mouse_scroll error: %s", err)
+            return False
+
+    def press_key(self, key_name: str) -> bool:
+        """Presses and releases a key by standard name (enter, space, tab, esc, etc.)."""
+        k = str(key_name or "").lower().strip()
+        key_map = {
+            "enter": VK_RETURN, "return": VK_RETURN,
+            "space": VK_SPACE, "spacebar": VK_SPACE,
+            "esc": VK_ESCAPE, "escape": VK_ESCAPE,
+            "tab": VK_TAB,
+            "backspace": 0x08,
+            "delete": 0x2E, "del": 0x2E,
+            "up": 0x26, "down": 0x28, "left": 0x25, "right": 0x27,
+            "win": VK_LWIN, "windows": VK_LWIN,
+        }
+        vk = key_map.get(k)
+        if vk:
+            self.send_virtual_key(vk, key_up=False)
+            time.sleep(0.02)
+            self.send_virtual_key(vk, key_up=True)
+            return True
+        elif len(k) == 1:
+            return self.type_unicode_text(k)
+        return False
+
     # ── System Power, Volume & RAM Controls ───────────────────────────────────
 
     def adjust_volume(self, action: str) -> dict[str, Any]:
@@ -877,23 +975,41 @@ class UnifiedComputerController:
     # ── Web Navigation & Searches ─────────────────────────────────────────────
 
     def web_search(self, query: str, engine: str = "google") -> dict[str, Any]:
-        """Opens default browser with specified search engine."""
-        encoded = urllib.parse.quote_plus(query.strip())
+        """Opens default browser or Google Chrome with specified search query."""
+        clean_q = query.strip()
+        encoded = urllib.parse.quote_plus(clean_q)
         if engine == "youtube":
             url = f"https://www.youtube.com/results?search_query={encoded}"
-            webbrowser.open(url)
-            return {"success": True, "message": f"Searching YouTube for '{query}', Sir."}
+            action_desc = f"Searching YouTube for '{clean_q}'"
         else:
             url = f"https://www.google.com/search?q={encoded}"
+            action_desc = f"Searching Google for '{clean_q}'"
+
+        chrome_path = self.verified_app_registry.get("chrome", {}).get("path")
+        if chrome_path and os.path.exists(chrome_path):
+            try:
+                subprocess.Popen([chrome_path, url])
+                return {"success": True, "message": f"{action_desc}, Sir."}
+            except Exception:
+                webbrowser.open(url)
+        else:
             webbrowser.open(url)
-            return {"success": True, "message": f"Searching Google for '{query}', Sir."}
+        return {"success": True, "message": f"{action_desc}, Sir."}
 
     def open_url(self, url: str) -> dict[str, Any]:
-        """Navigates to URL in default browser."""
+        """Navigates to URL in Chrome or default browser."""
         target = url.strip()
         if not target.startswith("http://") and not target.startswith("https://"):
             target = f"https://{target}"
-        webbrowser.open(target)
+        chrome_path = self.verified_app_registry.get("chrome", {}).get("path")
+        if chrome_path and os.path.exists(chrome_path):
+            try:
+                subprocess.Popen([chrome_path, target])
+                return {"success": True, "message": f"Opening {target} in Chrome, Sir."}
+            except Exception:
+                webbrowser.open(target)
+        else:
+            webbrowser.open(target)
         return {"success": True, "message": f"Opening {target}, Sir."}
 
     # ── Compound IDE Project Directive Execution ──────────────────────────────
@@ -967,8 +1083,9 @@ class UnifiedComputerController:
         Parses user prompt for instant local directives (<10ms).
         Returns execution result dict if matched, or None if prompt requires deep AI reasoning.
         """
-        text = prompt.lower().strip()
-        text = re.sub(r"^(jarvis|hey jarvis|hi jarvis|please|can you|could you|would you|just)\s+", "", text).strip()
+        prefix_pattern = r"^(?:(?:jarvis|hey\s+jarvis|hi\s+jarvis|ok\s+jarvis|hey\s+google|ok\s+google|google|alexa|siri|computer|bro|dude|please|can\s+you|could\s+you|would\s+you|will\s+you|just|kindly|i\s+want\s+you\s+to|tell\s+me|i\s+need\s+you\s+to)\s*)+"
+        text = re.sub(prefix_pattern, "", prompt, flags=re.IGNORECASE).strip().lower()
+        text = re.sub(prefix_pattern, "", text, flags=re.IGNORECASE).strip().lower()
         text_clean = re.sub(r"[?!.,]", "", text).strip()
 
         # 1. Fast Conversational Responses (<1ms)
@@ -1138,7 +1255,34 @@ class UnifiedComputerController:
             res["action"] = "Empty recycle bin"
             return res
 
-        # 9. Web Navigation & Searches
+        # 9. Compound YouTube Media & Song Playback
+        yt_compound = re.search(
+            r"\b(?:open\s+(?:chrome|browser)?\s*(?:and\s+)?(?:then\s+)?open\s+youtube\s+(?:and\s+)?(?:then\s+)?play\s*(.*)|open\s+youtube\s+(?:and\s+)?play\s*(.*)|(?:search\s+and\s+)?play\s+(.+?)\s+(?:on|in)\s+youtube|(?:search\s+youtube\s+for|play\s+on\s+youtube)\s*(.+)|play\s+(?:some\s+song|music|a\s+song|songs|some\s+music))\b",
+            text
+        )
+        if yt_compound:
+            song_query = (yt_compound.group(1) or yt_compound.group(2) or yt_compound.group(3) or yt_compound.group(4) or "").strip()
+            if not song_query or song_query in ("some song", "a song", "music", "songs", "some music"):
+                song_query = "top hits music"
+            res = self.web_search(song_query, engine="youtube")
+            res["action"] = f"Play YouTube: {song_query}"
+            res["message"] = f"Right away, Sir. Opening Chrome and playing '{song_query}' on YouTube."
+            return res
+
+        # 9b. Compound Web Searches (e.g. "open chrome and search about internet", "search about internet on chrome")
+        search_compound = re.search(
+            r"\b(?:open\s+(?:chrome|google\s+chrome|browser|edge)\s+(?:and\s+)?(?:then\s+)?(?:search|look\s+up|google)\s+(?:about|for)?\s*(.+)|(?:search|look\s+up|google)\s+(?:about|for)?\s*(.+?)\s+(?:on|in|using)\s+(?:chrome|google|browser|the\s+web|internet)|search\s+(?:about|for)\s*(.+))\b",
+            text
+        )
+        if search_compound:
+            raw_query = (search_compound.group(1) or search_compound.group(2) or search_compound.group(3) or "").strip()
+            query = re.sub(r"^(?:about|for)\s+", "", raw_query).strip()
+            if query:
+                res = self.web_search(query, engine="google")
+                res["action"] = f"Web Search: {query}"
+                res["message"] = f"Right away, Sir. Opening Chrome and searching Google for '{query}'."
+                return res
+
         if text.startswith("youtube ") or "search youtube for" in text or "play on youtube" in text:
             query = re.sub(r"^(youtube|search youtube for|play on youtube)\s+", "", text).strip()
             res = self.web_search(query, engine="youtube")
@@ -1150,6 +1294,57 @@ class UnifiedComputerController:
             res = self.web_search(query, engine="google")
             res["action"] = f"Google search: {query}"
             return res
+
+        # 9c. Human-like Typing, Key Presses & Mouse Control
+        open_and_type = re.search(r"\b(?:open|launch|start)\s+([a-z0-9\s]+?)\s+(?:and\s+)?(?:then\s+)?type\s+(.+)", text)
+        if open_and_type:
+            app_target = open_and_type.group(1).strip()
+            type_content = open_and_type.group(2).strip()
+            self.launch_app(app_target)
+            time.sleep(0.6)
+            self.type_unicode_text(type_content)
+            return {
+                "success": True,
+                "action": f"Open {app_target} & Type",
+                "message": f"Opened {app_target} and typed your text like a human operator, Sir."
+            }
+
+        type_match = re.search(r"^(?:type|write|input)\s+(.+)", text)
+        if type_match:
+            content = type_match.group(1).strip()
+            self.type_unicode_text(content)
+            return {
+                "success": True,
+                "action": f"Type text: {content[:30]}",
+                "message": f"Typed text into active window, Sir."
+            }
+
+        press_match = re.search(r"^(?:press|hit)\s+(enter|return|space|spacebar|esc|escape|tab|backspace|delete|win|windows|up|down|left|right)", text)
+        if press_match:
+            k = press_match.group(1).strip()
+            self.press_key(k)
+            return {
+                "success": True,
+                "action": f"Press key: {k}",
+                "message": f"Pressed {k} key, Sir."
+            }
+
+        if re.search(r"\b(?:double\s+click|doubleclick)\b", text):
+            self.mouse_click(clicks=2)
+            return {"success": True, "action": "Double click", "message": "Double clicked at cursor position, Sir."}
+        if re.search(r"\b(?:right\s+click|rightclick|context\s+menu)\b", text):
+            self.mouse_click(button="right")
+            return {"success": True, "action": "Right click", "message": "Right clicked at cursor position, Sir."}
+        if re.search(r"\b(?:left\s+click|click\s+here|click\s+mouse|click\s+screen)\b", text) or text_clean in ("click", "click mouse"):
+            self.mouse_click(button="left")
+            return {"success": True, "action": "Left click", "message": "Clicked at cursor position, Sir."}
+
+        if any(w in text for w in ["scroll down", "page down"]):
+            self.mouse_scroll(-240)
+            return {"success": True, "action": "Scroll down", "message": "Scrolled down, Sir."}
+        if any(w in text for w in ["scroll up", "page up"]):
+            self.mouse_scroll(240)
+            return {"success": True, "action": "Scroll up", "message": "Scrolled up, Sir."}
 
         # 10. Compound Project & IDE Directives
         agy_pattern = r"\b(?:open|launch|start|go to)\s+(?:antigravity|antigrvaity|antigravty|anti-gravity|anti\s+gravity|agy)\b"

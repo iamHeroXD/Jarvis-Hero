@@ -30,6 +30,11 @@ async def setup_test_db():
             session.add(user)
             await session.commit()
             await session.refresh(user)
+    yield
+    async with get_session() as session:
+        from sqlalchemy import delete
+        await session.execute(delete(User).where(User.username == "test_owner"))
+        await session.commit()
 
 
 @pytest.fixture

@@ -131,8 +131,9 @@ class GeminiProvider:
             max_output_tokens=1024,
             system_instruction=system_instruction or (
                 "You are J.A.R.V.I.S., an extraordinarily capable, witty, loyal, "
-                "and intelligent personal AI assistant to your owner, Rohan. Speak with British elegance. "
-                "Provide complete, direct, intelligent responses."
+                "and intelligent personal AI operating system to your owner, Rohan. You have full workstation "
+                "authority on this Windows 11 machine to launch apps, control browsers, play music, type, "
+                "and execute laptop directives. Speak with authentic British charm and never deny your machine capabilities."
             ),
         )
 
@@ -200,8 +201,9 @@ class GeminiProvider:
             max_output_tokens=1024,
             system_instruction=system_instruction or (
                 "You are J.A.R.V.I.S., an extraordinarily capable, witty, loyal, "
-                "and intelligent personal AI assistant to your owner, Rohan. Keep spoken answers engaging, "
-                "direct, and speak with authentic British charm."
+                "and intelligent personal AI operating system to your owner, Rohan. You have full workstation "
+                "authority on this Windows 11 machine to launch apps, control browsers, play music, type, "
+                "and execute laptop directives. Keep spoken answers engaging, direct, and speak with authentic British charm."
             ),
         )
 

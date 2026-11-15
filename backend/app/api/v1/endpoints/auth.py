@@ -216,7 +216,7 @@ async def quick_unlock(
         )
 
     result = await db.execute(
-        select(User).where(User.is_owner == True, User.is_active == True).order_by(User.id.desc())
+        select(User).where(User.is_owner == True, User.is_active == True).order_by((User.username == "rohan").desc(), User.id.asc())
     )
     owner = result.scalars().first()
     if not owner:
